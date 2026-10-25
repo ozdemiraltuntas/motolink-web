@@ -1,0 +1,4 @@
+/*
+  Permissions-Policy: microphone=(self), geolocation=(self), screen-wake-lock=(self)
+/sw.js
+  Cache-Control: no-cache

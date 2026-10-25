@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>MotoLink</title>
+<meta name="description" content="MotoLink motosiklet grup interkomu — web sürümü">
+<meta name="theme-color" content="#111214">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MotoLink">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="icon" href="img/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="lib/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <!-- Üst çubuk: logo · S.O.S · Odaya katıl / Odadan ayrıl (Android ile aynı yerde) -->
+  <header class="top">
+    <img class="wordmark" src="img/wordmark.png" alt="MotoLink">
+    <button id="sosBtn" class="sos" aria-label="S.O.S">S.O.S</button>
+    <button id="joinBtn" class="join"><span id="joinIcon">⮕</span><span id="joinText">ODAYA KATIL</span></button>
+  </header>
+
+  <main id="pages">
+    <!-- 1 · ANA SAYFA -->
+    <section id="p-home" class="page on">
+      <div class="hello">Merhaba,</div>
+      <h1 id="greet" class="greet">Sürücü, yola hazır mısın?</h1>
+
+      <div id="installHint" class="hint raised hidden">
+        <b>📲 Uygulama gibi kur:</b> Safari'de alttaki <b>Paylaş</b> (□↑) düğmesine dokun, sonra <b>Ana Ekrana Ekle</b>'yi seç.
+      </div>
+
+      <div class="tiles">
+        <button id="createBtn" class="tile amber"><span class="ti">＋</span>Oda<br>oluştur</button>
+        <button id="codeBtn" class="tile raised"><span class="ti green">⮕</span>Kodla<br>katıl<i class="screw s1"></i><i class="screw s2"></i></button>
+      </div>
+
+      <div class="label">SON ODALARIM</div>
+      <div id="recent" class="list"></div>
+
+      <div class="gift"><img src="img/tmp.png" alt="">Türkiye Motosiklet Platformu'nun motosiklet kullanıcılarına hediyesidir.</div>
+      <div class="note">iPhone web sürümü · Sürüşte ekran açık kalmalı: ekran kilitlenirse ya da başka uygulamaya geçersen ses kesilir, geri dönünce kendiliğinden bağlanır.</div>
+    </section>
+
+    <!-- 2 · ODA -->
+    <section id="p-room" class="page">
+      <div id="roomEmpty" class="empty raised">
+        <div style="font-size:42px">🏍</div>
+        <b>Henüz bir odada değilsin</b>
+        <span>Üstteki <b>ODAYA KATIL</b> düğmesine dokun ya da Ana sayfadan oda oluştur.</span>
+      </div>
+      <div id="roomBody" class="hidden">
+        <div class="rh">
+          <div id="rLogo" class="rlogo">M</div>
+          <div class="rht">
+            <h2 id="rTitle" class="fit">Oda</h2>
+            <small id="rSub">0 sürücü</small>
+          </div>
+          <button id="adminBtn" class="rbtn raised hidden" aria-label="Oda yönetimi">🛡</button>
+          <button id="qrBtn" class="rbtn raised" aria-label="QR kod">▦</button>
+          <button id="shareBtn" class="rbtn raised" aria-label="Davet et">⤴</button>
+        </div>
+
+        <div class="panel inset modes">
+          <button class="sw" data-mode="ptt">Bas-konuş</button>
+          <button class="sw" data-mode="open">Eller Serbest</button>
+          <button class="sw" data-mode="live">Sürekli Açık</button>
+        </div>
+
+        <div id="radioBar" class="panel inset radio hidden">
+          <div class="lcd"><span id="radioText">♪</span></div>
+          <button id="radioStop" class="sq raised" aria-label="Radyoyu kapat">■</button>
+        </div>
+
+        <div id="audioUnlock" class="unlock hidden">🔊 Sesi açmak için buraya dokun</div>
+
+        <div class="stage">
+          <div class="bezel"><div id="ring" class="groove">
+            <button id="ptt" class="knobbig">
+              <span id="pttIcon" class="mi">🎙</span>
+              <b id="pttTitle">BAS KONUŞ</b>
+              <span id="pttHint">basılı tut</span>
+            </button>
+          </div></div>
+        </div>
+
+        <div id="talking" class="talk inset"><span id="talkingText">Kimse konuşmuyor</span></div>
+        <div class="label">ODADAKİLER</div>
+        <div id="riders" class="list"></div>
+      </div>
+    </section>
+
+    <!-- 3 · HARİTA -->
+    <section id="p-map" class="page nopad">
+      <div id="map"></div>
+      <div class="maptools">
+        <button id="centerBtn" class="tool amberk" aria-label="Konumum">◎</button>
+      </div>
+      <div id="pings" class="pings hidden">
+        <button data-ping="fuel" class="pg raised">⛽<small>Benzin</small></button>
+        <button data-ping="break" class="pg raised">☕<small>Mola</small></button>
+        <button data-ping="danger" class="pg raised">⚠️<small>Tehlike</small></button>
+        <button data-ping="wait" class="pg raised">✋<small>Bekleyin</small></button>
+      </div>
+      <div class="mapsheet raised">
+        <div class="locrow">
+          <span>Konumum</span>
+          <div class="panel inset locmodes">
+            <button class="sw" data-loc="off">Kapalı</button>
+            <button class="sw" data-loc="saver">Tasarruf</button>
+            <button class="sw" data-loc="live">Canlı</button>
+          </div>
+        </div>
+        <div id="mapRiders" class="chips"></div>
+      </div>
+    </section>
+
+    <!-- 4 · MÜZİK -->
+    <section id="p-music" class="page">
+      <div class="frame raised">
+        <div class="lcdbox big">
+          <div class="g small" id="nowTag">RADYO</div>
+          <div class="g title fit" id="nowTitle">KAPALI</div>
+          <div class="gd" id="nowSub">Listeden bir kanal seç</div>
+          <div class="vu" id="vu"></div>
+        </div>
+        <div class="keys">
+          <button id="mPrev" class="kbtn raised">⏮</button>
+          <button id="mPlay" class="kbtn raised amberText">▶</button>
+          <button id="mNext" class="kbtn raised">⏭</button>
+        </div>
+        <div class="volrow"><span>🔈</span><input id="vol" type="range" min="0" max="100" value="80"><span>🔊</span></div>
+      </div>
+      <div class="note">Seçtiğin kanal sadece sende çalar. Odada biri radyo paylaşırsa Oda sayfasında görünür.</div>
+      <div id="stations" class="list"></div>
+    </section>
+
+    <!-- 5 · AYARLAR -->
+    <section id="p-set" class="page">
+      <div class="sec raised">
+        <h4>Sürücü</h4>
+        <div class="small">Adın odada ve haritada görünür.</div>
+        <input id="nameInput" class="input inset" maxlength="24" placeholder="Adın">
+        <button id="saveName" class="mbtn amber">Kaydet</button>
+      </div>
+      <div class="sec raised">
+        <h4>Ses filtresi</h4>
+        <label class="tg"><div><b>Gürültü bastırma</b><small>Rüzgar ve yol sesini azaltır</small></div><input type="checkbox" id="optNoise" class="switch"></label>
+        <label class="tg"><div><b>Yankı engelleme</b><small>Hoparlörden gelen sesin geri gitmesini önler</small></div><input type="checkbox" id="optEcho" class="switch"></label>
+        <label class="tg"><div><b>Otomatik ses seviyesi</b><small>Fısıltı da bağırış da aynı seviyede gider</small></div><input type="checkbox" id="optAgc" class="switch"></label>
+        <label class="tg"><div><b>Ekran açık kalsın</b><small>Odadayken ekran kararmaz (iPhone'da ses kesilmesin diye gerekli)</small></div><input type="checkbox" id="optWake" class="switch"></label>
+        <label class="tg"><div><b>Uyarıları sesli oku</b><small>Benzin, mola, S.O.S gibi uyarılar kulaklıktan okunur</small></div><input type="checkbox" id="optSpeak" class="switch"></label>
+      </div>
+      <div class="sec raised">
+        <h4>Hakkında</h4>
+        <div class="small">MotoLink web sürümü <span id="ver"></span> · Android uygulamasıyla aynı odalarda çalışır.<br>Geliştirici: Özdemir ALTUNTAŞ</div>
+        <button id="privacyBtn" class="mbtn raised">Gizlilik politikası</button>
+        <button id="wipeBtn" class="mbtn danger">🗑 Bu telefondaki bilgilerimi sil</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="nav" id="nav">
+    <button data-p="home" class="it on"><span class="btn">⌂</span>Ana</button>
+    <button data-p="room" class="it"><span class="btn">🎙</span>Oda</button>
+    <button data-p="map" class="it"><span class="btn">⛯</span>Harita</button>
+    <button data-p="music" class="it"><span class="btn">♫</span>Müzik</button>
+    <button data-p="set" class="it"><span class="btn">⚙</span>Ayarlar</button>
+  </nav>
+</div>
+
+<!-- Pencereler -->
+<div id="sheet" class="sheetwrap hidden"><div class="sheetbox raised" id="sheetBox"></div></div>
+<div id="sosAlert" class="sosalert hidden"></div>
+<div id="toast" class="toast hidden"></div>
+<div id="busy" class="busy hidden"><div class="spin"></div><span id="busyText">Bağlanıyor…</span></div>
+
+<script src="lib/livekit-client.umd.js"></script>
+<script src="lib/leaflet.js"></script>
+<script src="lib/qrcode.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
