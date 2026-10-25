@@ -219,3 +219,6 @@ button:active{filter:brightness(.92);transform:translateY(1px)}
 .sosalert .mbtn{max-width:340px}
 @keyframes flash{50%{background:rgba(200,0,0,.95)}}
 .leaflet-container{font:inherit}
+
+.sta .lg{position:relative;overflow:hidden}
+.sta .lg img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:3px}

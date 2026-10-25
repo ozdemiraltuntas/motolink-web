@@ -931,31 +931,120 @@
   player.volume = store.get('vol', 80) / 100;
   $('#vol').value = Math.round(player.volume * 100);
   $('#vol').oninput = (e) => { player.volume = e.target.value / 100; store.set('vol', +e.target.value); };
-  async function loadStations() {
-    if (stLoaded) return;
-    $('#stations').innerHTML = '<div class="note">Kanallar yükleniyor…</div>';
+  // Hazır kanallar (Android uygulamasındaki radyolar.m3u ile aynı) — sunucuya ulaşılamasa bile liste boş kalmasın
+  const BUILTIN = [
+    ['Alem FM', 'https://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8', 'Pop'],
+    ['Best FM', 'https://babaradyo.turkhosted.com/best/bestfm.stream/playlist.m3u8', 'Pop'],
+    ['Kafa Radyo', 'https://moondigitalmaster.radyotvonline.net/kafaradyo/playlist.m3u8', 'Pop'],
+    ["Radyoland 90'lar", 'https://moondigitaledge.radyotvonline.net/radyolanddoksanlar/playlist.m3u8', 'Nostalji'],
+    ['A Haber Radyo', 'https://trkvz-radyolar.ercdn.net/ahaberradyo/playlist.m3u8', 'Haber'],
+    ['A Spor Radyo', 'https://trkvz-radyolar.ercdn.net/asporradyo/playlist.m3u8', 'Spor'],
+    ['Bloomberg HT Radyo', 'https://ciner-live.ercdn.net/bloombergradyo/bloombergradyo_1.m3u8', 'Ekonomi'],
+    ['CNN Türk Radyo', 'https://cdn.duhnet.tv/S2/HLS_LIVE/cnnradyo/index.m3u8', 'Haber']
+  ];
+  function guessCat(name, tags) {
+    const t = (String(name) + ' ' + String(tags || '')).toLocaleLowerCase('tr-TR');
+    if (/arabesk|damar/.test(t)) return 'Arabesk';
+    if (/haber|news/.test(t)) return 'Haber';
+    if (/spor|sport/.test(t)) return 'Spor';
+    if (/türkü|turku|halk|folk/.test(t)) return 'Türkü';
+    if (/rock|metal/.test(t)) return 'Rock';
+    if (/klasik|classical|sanat|tsm/.test(t)) return 'Türk Sanat';
+    if (/dini|islam|kuran|religious/.test(t)) return 'Dini';
+    if (/90|80|70|nostalji|oldies/.test(t)) return 'Nostalji';
+    if (/jazz|caz|lounge|chill/.test(t)) return 'Caz';
+    if (/pop|hit/.test(t)) return 'Pop';
+    return 'Radyo';
+  }
+  async function fetchJson(url, ms) {
+    const ctl = window.AbortController ? new AbortController() : null;
+    const tm = setTimeout(() => { try { ctl && ctl.abort(); } catch (e) {} }, ms || 9000);
+    try { const r = await fetch(url, ctl ? { signal: ctl.signal } : {}); return await r.json(); }
+    finally { clearTimeout(tm); }
+  }
+  async function loadStations(force) {
+    if (stLoaded && !force) return;
+    const cached = store.get('stations', []);
+    if (cached.length && !stations.length) { stations = cached; renderStations(); }
+    else if (!stations.length) $('#stations').innerHTML = '<div class="note">Kanallar yükleniyor…</div>';
+    const out = [], seen = new Set();
+    // iPhone ve tarayıcılar sadece güvenli (https) yayınları çalabilir
+    const add = (t, u, c, l) => {
+      u = String(u || '').trim(); t = String(t || '').trim();
+      if (!t || !/^https:\/\//i.test(u)) return;
+      const k = u.replace(/\/+$/, '').toLowerCase();
+      if (seen.has(k)) return; seen.add(k);
+      out.push({ t: t.substring(0, 50), u, c: c || guessCat(t, ''), l: /^https:\/\//i.test(l || '') ? l : '' });
+    };
+    // 1) Yöneticinin Radyolar listesi (sunucu)
     try {
       const j = await api({ action: 'radios', room: 'RADYO', identity: S.id });
-      stations = (j.radios || []).map((r) => ({ t: r.t, u: r.u, c: r.c || '' }));
-      stLoaded = true;
-    } catch (e) { stations = []; }
-    renderStations();
+      (j.radios || []).forEach((r) => add(r.t, r.u, r.c, r.l));
+    } catch (e) {}
+    // 2) Hazır kanallar
+    BUILTIN.forEach((r) => add(r[0], r[1], r[2], ''));
+    // İlk iki liste hemen görünsün; büyük dizin arkadan eklenir
+    const apply = () => {
+      if (!out.length) return;
+      const cur = stIndex >= 0 && stations[stIndex] ? stations[stIndex].u : '';
+      stations = out.slice(); stLoaded = true;
+      store.set('stations', stations);
+      stIndex = cur ? stations.findIndex((x) => x.u === cur) : -1;
+      renderStations();
+    };
+    if (!cached.length) apply();
+    // 3) Türkiye'nin en çok dinlenen radyoları (Android uygulamasındaki gibi radio-browser.info dizininden)
+    for (const base of ['https://de1.api.radio-browser.info', 'https://nl1.api.radio-browser.info', 'https://at1.api.radio-browser.info']) {
+      try {
+        const arr = await fetchJson(base + '/json/stations/bycountrycodeexact/TR?order=votes&reverse=true&limit=200&hidebroken=true', 9000);
+        if (Array.isArray(arr)) { arr.forEach((o) => add(o.name, o.url_resolved || o.url, guessCat(o.name, o.tags), o.favicon)); break; }
+      } catch (e) {}
+    }
+    apply();
+    if (!out.length) renderStations();
   }
   function renderStations() {
     $('#stations').innerHTML = stations.length ? stations.map((s, i) =>
-      '<button class="sta raised' + (i === stIndex && !sharedRadio ? ' on' : '') + '" data-i="' + i + '"><div class="lg">' + esc(s.t.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü0-9 ]/g, '').split(' ').map((w) => w[0] || '').join('').slice(0, 2).toUpperCase() || '♪') + '</div>' +
+      '<button class="sta raised' + (i === stIndex && !sharedRadio ? ' on' : '') + '" data-i="' + i + '"><div class="lg">' + (s.l ? '<img src="' + esc(s.l) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '<span>' + esc(s.t.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü0-9 ]/g, '').split(' ').map((w) => w[0] || '').join('').slice(0, 2).toLocaleUpperCase('tr-TR') || '♪') + '</span></div>' +
       '<div class="lcdbox"><div class="g">' + esc(s.t.toLocaleUpperCase('tr-TR')) + '</div><div class="gd">' + esc((i === stIndex && !sharedRadio) ? '▶ SENDE ÇALIYOR' : (s.c || 'RADYO').toLocaleUpperCase('tr-TR')) + '</div></div></button>').join('')
-      : '<div class="note">Kanal listesi alınamadı. İnternet bağlantını kontrol et.</div>';
+      : '<div class="note">Kanal listesi alınamadı. İnternet bağlantını kontrol et.</div><button class="mbtn raised" id="stRetry">Tekrar dene</button>';
+    const rt = $('#stRetry'); if (rt) rt.onclick = () => loadStations(true);
     $$('#stations .sta').forEach((el) => el.addEventListener('click', () => playStation(+el.dataset.i)));
+  }
+  // .m3u8 yayınları: iPhone kendisi çalar; Android Chrome gibi tarayıcılarda hls.js ile çalınır (gerekince yüklenir)
+  let hls = null, hlsLoading = null;
+  function loadHls() {
+    if (window.Hls) return Promise.resolve();
+    if (!hlsLoading) hlsLoading = new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'lib/hls.light.min.js'; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+    return hlsLoading;
+  }
+  async function playUrl(url, onFail) {
+    try { if (hls) { hls.destroy(); hls = null; } } catch (e) {}
+    const isHls = /\.m3u8(\?|$)/i.test(url);
+    if (isHls && !player.canPlayType('application/vnd.apple.mpegurl')) {
+      try {
+        await loadHls();
+        if (window.Hls && window.Hls.isSupported()) {
+          hls = new window.Hls({ enableWorker: true, lowLatencyMode: false });
+          hls.loadSource(url); hls.attachMedia(player);
+          hls.on(window.Hls.Events.ERROR, (ev, d) => { if (d && d.fatal && onFail) onFail(); });
+          player.play().catch(() => onFail && onFail());
+          return;
+        }
+      } catch (e) {}
+    }
+    player.src = url;
+    player.play().catch(() => onFail && onFail());
   }
   function playStation(i) {
     const s = stations[i]; if (!s) return;
     sharedRadio = null; $('#radioBar').classList.add('hidden');
-    stIndex = i; player.src = s.u; player.play().catch(() => toast('Kanal açılamadı, başka bir kanal dene.'));
+    stIndex = i; playUrl(s.u, () => toast('Kanal açılamadı, başka bir kanal dene.'));
     setNow(s.t, 'SADECE SENDE', s.c || 'RADYO', true);
     renderStations();
   }
   function stopRadio(silent) {
+    try { if (hls) { hls.destroy(); hls = null; } } catch (e) {}
     player.pause(); player.removeAttribute('src'); try { player.load(); } catch (e) {}
     sharedRadio = null; $('#radioBar').classList.add('hidden');
     setNow('KAPALI', 'RADYO', 'Listeden bir kanal seç', false);
@@ -975,7 +1064,7 @@
   function onMusic(j) {
     if (j.a === 'play' && j.url) {
       sharedRadio = { url: j.url, title: j.title || 'Radyo', by: j.by || '' };
-      stIndex = -1; player.src = j.url; player.play().catch(() => {});
+      stIndex = -1; playUrl(j.url, null);
       $('#radioText').textContent = '♪ ' + sharedRadio.title + ' · ORTAK';
       $('#radioBar').classList.remove('hidden');
       setNow(sharedRadio.title, 'ODAYLA ORTAK', sharedRadio.by ? sharedRadio.by + ' paylaştı' : 'Odada çalıyor', true);
