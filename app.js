@@ -1256,15 +1256,23 @@
   const PH = { list: [], pend: {}, sending: null };
   function clearPhotos() { PH.list.forEach((p) => URL.revokeObjectURL(p.url)); PH.list = []; PH.pend = {}; renderPhotos(); $('#pcard').classList.add('hidden'); }
   function photoBlocked(id) { return (store.get('photoBlocked', []) || []).includes(id); }
+  // Küçük resimler ekranda sürekli durmaz: sadece gönderim çubuğu ve "Fotoğraflar (n)" düğmesi
   function renderPhotos() {
+    const g = $('#galleryBtn'); if (g) g.textContent = '🖼 Fotoğraflar (' + PH.list.length + ')';
     const el = $('#photoStrip');
-    if (!PH.list.length && PH.sending == null) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    if (PH.sending == null) { el.classList.add('hidden'); el.innerHTML = ''; return; }
     el.classList.remove('hidden');
-    el.innerHTML = '<b>🖼 Fotoğraflar (' + PH.list.length + ')</b>' +
-      (PH.sending != null ? '<div class="small">Gönderiliyor… %' + Math.round(PH.sending * 100) + '</div><div class="bar"><i style="width:' + Math.round(PH.sending * 100) + '%"></i></div>' : '') +
-      '<div class="row">' + PH.list.map((p, i) => '<img src="' + p.url + '" data-i="' + i + '" alt="Fotoğraf">').join('') + '</div>';
-    $$('#photoStrip img').forEach((im) => im.onclick = () => viewPhoto(PH.list[+im.dataset.i]));
+    el.innerHTML = '<div class="small">Gönderiliyor… %' + Math.round(PH.sending * 100) + '</div><div class="bar"><i style="width:' + Math.round(PH.sending * 100) + '%"></i></div>';
   }
+  function openGallery() {
+    if (!PH.list.length) { toast('Bu odada henüz fotoğraf paylaşılmadı.'); return; }
+    sheet('<h3>🖼 Odadaki fotoğraflar (' + PH.list.length + ')</h3><p>Odadan çıkınca silinir. Saklamak istediğini açıp "Kaydet"e bas.</p><div class="pgrid">' +
+      PH.list.map((p, i) => '<img src="' + p.url + '" data-i="' + i + '" alt="Fotoğraf">').join('') + '</div><button class="mbtn raised" id="pgClose">Kapat</button>', (b) => {
+      b.querySelector('#pgClose').onclick = closeSheet;
+      b.querySelectorAll('.pgrid img').forEach((im) => im.onclick = () => viewPhoto(PH.list[+im.dataset.i]));
+    });
+  }
+  $('#galleryBtn').onclick = openGallery;
   function onPhotoChunk(j, id, name) {
     const n = j.n | 0, i = j.i | 0;
     if (!j.id || n < 1 || n > 80 || i < 0 || i >= n || photoBlocked(id)) return;
