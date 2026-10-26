@@ -728,7 +728,19 @@
       (img ? '<div class="qrbox"><img src="' + img + '" alt="QR"></div>' : '') +
       '<div class="codebig">' + esc(S.code) + '</div><button class="mbtn raised" id="qrOk">Kapat</button>', (b) => { b.querySelector('#qrOk').onclick = closeSheet; });
   };
-  $('#shareBtn').onclick = async () => {
+  // ⤴ Paylaş: küçük menü (davet et / fotoğraf gönder / fotoğraflar)
+  $('#shareBtn').onclick = () => {
+    if (!S.room) return;
+    sheet('<h3>Paylaş</h3><button class="mbtn raised" id="shInv">👥 Arkadaşını davet et</button>' +
+      '<button class="mbtn raised" id="shPh">📷 Fotoğraf gönder</button><button class="mbtn raised" id="shGal">🖼 Fotoğraflar (' + PH.list.length + ')</button>' +
+      '<button class="mbtn raised" id="shNo">Kapat</button>', (b) => {
+      b.querySelector('#shNo').onclick = closeSheet;
+      b.querySelector('#shInv').onclick = () => { closeSheet(); shareInvite(); };
+      b.querySelector('#shPh').onclick = () => { closeSheet(); $('#photoBtn').click(); };
+      b.querySelector('#shGal').onclick = () => { closeSheet(); openGallery(); };
+    });
+  };
+  async function shareInvite() {
     if (!S.room) return;
     const text = 'MotoLink odama katıl: ' + S.title + '\nOda kodu: ' + S.code + '\n' + inviteUrl(S.code);
     try { if (navigator.share) { await navigator.share({ title: 'MotoLink', text }); return; } } catch (e) { return; }
