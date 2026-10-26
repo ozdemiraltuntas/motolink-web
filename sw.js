@@ -1,5 +1,5 @@
 // MotoLink web: uygulama dosyalarını telefonda saklar (hızlı açılış). Sürüm değişince yenisi indirilir.
-const V = 'motolink-web-1.1.3';
+const V = 'motolink-web-1.1.4';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.webmanifest',
   'lib/livekit-client.umd.js', 'lib/leaflet.js', 'lib/leaflet.css', 'lib/qrcode.js',
   'img/wordmark.png', 'img/tmp.png', 'img/icon-192.png', 'img/apple-touch-icon.png'];

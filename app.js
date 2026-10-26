@@ -419,6 +419,7 @@
     clearInterval(S.reqTimer); S.nicks = {}; S.approval = false;
     $$('audio.lk').forEach((a) => a.remove());
     S.micOn = false; S.open = false; S.live = false; S.locs = {};
+    clearPhotos();
     if (sharedRadio) stopRadio(true);
     updateTop(); renderRoom(); renderMapRiders();
   }
@@ -513,6 +514,7 @@
         renderRoom(); break;
       case 'roominfo': if (j.name) { S.title = j.name; rememberRoom(S.code, j.name, S.locked, S.wantRoom && S.wantRoom.pw); renderRoom(); toast('Oda adı güncellendi: ' + j.name); } break;
       case 'ping': onPing(j, id, name); break;
+      case 'img': if (id) onPhotoChunk(j, id, name); break;
       case 'sos': onSos(j, id, name); break;
       case 'music': onMusic(j); break;
       case 'adm': case 'locks': case 'mod': case 'nick': case 'apr': onAdminMsg(j, id, name); break;
@@ -1247,6 +1249,105 @@
   $('#wipeBtn').onclick = () => {
     sheet('<h3>Bu telefondaki bilgilerin silinsin mi?</h3><p>Adın, kayıtlı odaların ve ayarların bu tarayıcıdan silinir.</p><button class="mbtn danger" id="wy">🗑 Hepsini sil</button><button class="mbtn raised" id="wn">Vazgeç</button>',
       (b) => { b.querySelector('#wn').onclick = closeSheet; b.querySelector('#wy').onclick = async () => { closeSheet(); await leaveRoom(true); store.clear(); location.reload(); }; });
+  };
+
+  // ------------------------------------------------------------ odada fotoğraf (Android 0.9.55 ile aynı)
+  // Fotoğraf küçültülüp veri kanalından parça parça gider; sunucuda saklanmaz, odadan çıkınca silinir.
+  const PH = { list: [], pend: {}, sending: null };
+  function clearPhotos() { PH.list.forEach((p) => URL.revokeObjectURL(p.url)); PH.list = []; PH.pend = {}; renderPhotos(); $('#pcard').classList.add('hidden'); }
+  function photoBlocked(id) { return (store.get('photoBlocked', []) || []).includes(id); }
+  function renderPhotos() {
+    const el = $('#photoStrip');
+    if (!PH.list.length && PH.sending == null) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    el.classList.remove('hidden');
+    el.innerHTML = '<b>🖼 Fotoğraflar (' + PH.list.length + ')</b>' +
+      (PH.sending != null ? '<div class="small">Gönderiliyor… %' + Math.round(PH.sending * 100) + '</div><div class="bar"><i style="width:' + Math.round(PH.sending * 100) + '%"></i></div>' : '') +
+      '<div class="row">' + PH.list.map((p, i) => '<img src="' + p.url + '" data-i="' + i + '" alt="Fotoğraf">').join('') + '</div>';
+    $$('#photoStrip img').forEach((im) => im.onclick = () => viewPhoto(PH.list[+im.dataset.i]));
+  }
+  function onPhotoChunk(j, id, name) {
+    const n = j.n | 0, i = j.i | 0;
+    if (!j.id || n < 1 || n > 80 || i < 0 || i >= n || photoBlocked(id)) return;
+    const now = Date.now();
+    Object.keys(PH.pend).forEach((k) => { if (now - PH.pend[k].at > 120000) delete PH.pend[k]; });
+    let p = PH.pend[j.id];
+    if (!p) p = PH.pend[j.id] = { n, from: id, name, at: now, parts: new Array(n), got: 0 };
+    if (p.n !== n || p.from !== id) return;
+    if (p.parts[i] == null) { p.parts[i] = String(j.d || ''); p.got++; }
+    if (p.got < p.n) return;
+    delete PH.pend[j.id];
+    try {
+      const bin = atob(p.parts.join(''));
+      const bytes = new Uint8Array(bin.length);
+      for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+      if (!(bytes[0] === 0xFF && bytes[1] === 0xD8)) return;   // JPEG değilse gösterme
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
+      const photo = { id: j.id, from: id, name, url, time: Date.now(), mine: false };
+      addPhoto(photo);
+      const c = $('#pcard');
+      c.innerHTML = '<img src="' + url + '" alt=""><div style="flex:1;min-width:0"><b>📷 ' + esc(name) + ' bir fotoğraf gönderdi</b><small>Görmek için dokun</small></div>';
+      c.classList.remove('hidden');
+      c.onclick = () => { c.classList.add('hidden'); viewPhoto(photo); };
+      clearTimeout(PH.cardT); PH.cardT = setTimeout(() => c.classList.add('hidden'), 8000);
+      try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {}
+    } catch (e) {}
+  }
+  function addPhoto(p) {
+    PH.list = [p].concat(PH.list.filter((x) => x.id !== p.id));
+    while (PH.list.length > 30) URL.revokeObjectURL(PH.list.pop().url);
+    renderPhotos();
+  }
+  function viewPhoto(p) {
+    if (!p) return;
+    const t = new Date(p.time).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    sheet('<h3>' + (p.mine ? 'Senin fotoğrafın' : esc(p.name)) + ' · ' + t + '</h3><img class="pview" src="' + p.url + '" alt="Fotoğraf">' +
+      '<a class="mbtn amber" id="pvSave" href="' + p.url + '" download="MotoLink_' + p.time + '.jpg" style="text-decoration:none">💾 Kaydet</a>' +
+      (p.mine ? '' : '<button class="mbtn raised" id="pvRep">⚠ Bildir</button><button class="mbtn danger" id="pvBlock">⛔ Engelle</button>') +
+      '<button class="mbtn raised" id="pvClose">Kapat</button>', (b) => {
+      b.querySelector('#pvClose').onclick = closeSheet;
+      const rep = b.querySelector('#pvRep'), blk = b.querySelector('#pvBlock');
+      if (rep) rep.onclick = async () => {
+        try { await api({ action: 'report', room: S.code || 'PUSH', identity: S.id, target: p.from, targetName: p.name, kind: 'foto', reason: 'uygunsuz fotoğraf' }); toast('Bildirimin alındı, teşekkürler.'); }
+        catch (e) { toast('Bildirim gönderilemedi: ' + e.message); }
+      };
+      if (blk) blk.onclick = () => {
+        const l = store.get('photoBlocked', []) || []; if (!l.includes(p.from)) l.push(p.from); store.set('photoBlocked', l);
+        PH.list.filter((x) => x.from === p.from).forEach((x) => URL.revokeObjectURL(x.url));
+        PH.list = PH.list.filter((x) => x.from !== p.from); renderPhotos(); closeSheet();
+        toast(p.name + ' engellendi; fotoğrafları artık gösterilmeyecek.');
+      };
+    });
+  }
+  $('#photoBtn').onclick = () => {
+    if (!S.room) { toast('Fotoğraf göndermek için odada olmalısın.'); return; }
+    if (PH.sending != null) { toast('Bir önceki fotoğraf hâlâ gönderiliyor.'); return; }
+    $('#photoIn').value = ''; $('#photoIn').click();
+  };
+  $('#photoIn').onchange = async (e) => {
+    const f = e.target.files && e.target.files[0]; if (!f || !S.room) return;
+    try {
+      const img = await new Promise((ok, no) => { const im = new Image(); im.onload = () => ok(im); im.onerror = no; im.src = URL.createObjectURL(f); });
+      const big = Math.max(img.naturalWidth, img.naturalHeight), k = big > 1280 ? 1280 / big : 1;
+      const cv = document.createElement('canvas'); cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(img.src);
+      let q = 0.78, blob;
+      do { blob = await new Promise((ok) => cv.toBlob(ok, 'image/jpeg', q)); q -= 0.12; } while (blob && blob.size > 420000 && q > 0.4);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      let bin = ''; for (let k2 = 0; k2 < bytes.length; k2 += 8192) bin += String.fromCharCode.apply(null, bytes.subarray(k2, k2 + 8192));
+      const b64 = btoa(bin), CH = 12000, n = Math.ceil(b64.length / CH);
+      const id = S.id.slice(0, 6) + '-' + Date.now().toString(36);
+      PH.sending = 0; renderPhotos();
+      for (let i = 0; i < n; i++) {
+        if (!S.room) throw new Error('Odadan çıkıldı.');
+        publish({ t: 'img', id, i, n, d: b64.slice(i * CH, (i + 1) * CH) });
+        PH.sending = (i + 1) / n; renderPhotos();
+        await new Promise((r) => setTimeout(r, 40));
+      }
+      addPhoto({ id, from: S.id, name: S.name || 'Ben', url: URL.createObjectURL(blob), time: Date.now(), mine: true });
+      toast('📷 Fotoğraf odaya gönderildi.');
+    } catch (err) { toast('Fotoğraf gönderilemedi: ' + (err && err.message || 'hata')); }
+    PH.sending = null; renderPhotos();
   };
 
   // ------------------------------------------------------------ hesap ve yedek (sunucu 0.9.42)

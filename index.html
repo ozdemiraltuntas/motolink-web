@@ -61,10 +61,14 @@
             <h2 id="rTitle" class="fit">Oda</h2>
             <small id="rSub">0 sürücü</small>
           </div>
+          <button id="photoBtn" class="rbtn raised" aria-label="Fotoğraf gönder">📷</button>
           <button id="adminBtn" class="rbtn raised hidden" aria-label="Oda yönetimi">🛡</button>
           <button id="qrBtn" class="rbtn raised" aria-label="QR kod">▦</button>
           <button id="shareBtn" class="rbtn raised" aria-label="Davet et">⤴</button>
         </div>
+
+        <input type="file" id="photoIn" accept="image/*" hidden>
+        <div id="photoStrip" class="pstrip hidden"></div>
 
         <div class="panel inset modes">
           <button class="sw" data-mode="ptt">Bas-konuş</button>
@@ -185,6 +189,7 @@
 <div id="sheet" class="sheetwrap hidden"><div class="sheetbox raised" id="sheetBox"></div></div>
 <div id="sosAlert" class="sosalert hidden"></div>
 <div id="toast" class="toast hidden"></div>
+<div id="pcard" class="pcard hidden"></div>
 <div id="busy" class="busy hidden"><div class="spin"></div><span id="busyText">Bağlanıyor…</span></div>
 
 <script src="lib/livekit-client.umd.js"></script>
