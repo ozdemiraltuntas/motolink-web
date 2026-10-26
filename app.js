@@ -42,6 +42,7 @@
     modes: {}, onCall: new Set(), locs: {}, myLoc: null,
     locMode: store.get('locMode', 'off'), watchId: null, lastLocSent: 0,
     mySos: null, lastPing: {},
+    nicks: {}, approval: false, reqTimer: null, seenReq: new Set(), liveSince: 0,
     tickTimer: null, tickFirst: null, lastTick: 0
   };
   const MODES = { ptt: 'Bas-konuş', open: 'Eller Serbest', live: 'Sürekli Açık' };
@@ -243,6 +244,7 @@
       '<div class="label">KALICI ODA</div>' +
       '<input id="crName" class="input inset" maxlength="32" placeholder="Oda adı (ör. Kartal Sürüşü)">' +
       '<input id="crPw" class="input inset" type="password" maxlength="40" placeholder="Şifre (istersen, boş bırakabilirsin)">' +
+      '<label class="tg"><div><b>🛡 Girişte yönetici onayı</b><small>Şifreyi bilen biri girmek isteyince sana sorulur; sen onaylarsan girer.</small></div><input type="checkbox" id="crApr" class="switch"></label>' +
       '<button id="crPerm" class="mbtn raised">Kalıcı odayı aç</button><button id="crNo" class="mbtn raised">Vazgeç</button>', (b) => {
       b.querySelector('#crNo').onclick = closeSheet;
       b.querySelector('#crTmp').onclick = () => { closeSheet(); joinRoom('TMP-' + (1000 + Math.floor(Math.random() * 9000)), ''); };
@@ -253,7 +255,8 @@
         if (!validCode(code)) { toast('Oda adı en az 3 harf veya rakam olmalı.'); return; }
         closeSheet(); busy(true, 'Oda açılıyor…');
         try {
-          const j = await api({ action: 'create', room: code, identity: S.id, displayName: name, permanent: true, password: pw });
+          const apr = !!(pw && b.querySelector('#crApr').checked);
+          const j = await api({ action: 'create', room: code, identity: S.id, displayName: name, permanent: true, password: pw, approval: apr });
           const info = j.room || {};
           rememberRoom(code, info.name || name, !!pw, pw);
           busy(false);
@@ -291,9 +294,10 @@
     const usePw = pw || (saved && saved.pw) || '';
     let acc;
     try {
-      acc = await api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: usePw, avatar: '', announce: false });
+      acc = await fetchWithApproval(code, usePw);
     } catch (e) {
-      S.connecting = false; busy(false);
+      S.connecting = false; busy(false); closeSheet();
+      if (e.code === 'APPROVAL_CANCELLED') { toast('Giriş isteğinden vazgeçtin.'); return; }
       if (['PASSWORD_REQUIRED', 'PASSWORD_WRONG', 'TOO_MANY'].includes(e.code)) {
         if (saved && saved.pw) { saved.pw = ''; rememberRoom(saved.code, saved.name, true, ''); }
         const showErr = (e.code === 'PASSWORD_REQUIRED' && !fromPrompt && !usePw) ? '' : e.message;
@@ -329,6 +333,7 @@
     const info = acc.room || {};
     S.title = info.name || code; S.locked = !!info.locked; S.permanent = !!info.permanent;
     S.owner = acc.owner || ''; S.admins = new Set(acc.admins || []);
+    S.nicks = acc.nicks || {}; S.approval = !!(info.approval);
     S.lockedIds = new Set(); S.silenced = new Set(); S.roomLock = false;
     S.modes = {}; S.onCall = new Set(); S.locs = {};
     S.open = false; S.live = false; S.micOn = false;
@@ -343,9 +348,61 @@
     publishMode();
 
     S.connecting = false; busy(false);
-    startTicks(); keepAwake(true); applyLocMode();
+    startTicks(); keepAwake(true); applyLocMode(); startRequestsPolling();
     updateTop(); go('room');
     toast('🏍 ' + S.title + ' odasına girdin. Konuşmak için düğmeye basılı tut.');
+  }
+
+  // Oda girişte yönetici onayı istiyorsa: onay gelene kadar 5 saniyede bir tekrar sor (en çok 10 dakika)
+  let approvalCancel = false;
+  async function fetchWithApproval(code, pw) {
+    approvalCancel = false;
+    const started = Date.now();
+    let shown = false;
+    while (true) {
+      try {
+        const a = await api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: pw, avatar: '', announce: false });
+        if (shown) { closeSheet(); busy(true, 'Odaya bağlanıyor…'); }
+        return a;
+      } catch (e) {
+        if (e.code !== 'APPROVAL_PENDING') throw e;
+        if (!shown) {
+          shown = true; busy(false);
+          sheet('<h3>🛡 Yönetici onayı bekleniyor</h3><p><b>' + esc((e.room && e.room.name) || code) + '</b> odası girişte yönetici onayı istiyor. İsteğin gönderildi; yönetici onaylayınca kendiliğinden odaya gireceksin.</p><div class="spin" style="margin:14px auto"></div><p>Yönetici şu an odada değilse onay gecikebilir.</p><button class="mbtn raised" id="apCancel">Vazgeç</button>',
+            (b) => { b.querySelector('#apCancel').onclick = () => { approvalCancel = true; }; });
+        }
+        if (Date.now() - started > 10 * 60000) { const er = new Error('Yönetici 10 dakika içinde onaylamadı. Daha sonra tekrar dene.'); er.code = 'APPROVAL_TIMEOUT'; throw er; }
+        for (let w = 0; w < 20; w++) {
+          if (approvalCancel) { const er = new Error('Vazgeçildi'); er.code = 'APPROVAL_CANCELLED'; throw er; }
+          await new Promise((ok) => setTimeout(ok, 250));
+        }
+      }
+    }
+  }
+
+  // Yöneticiysem ve oda onay istiyorsa: bekleyen giriş isteklerini 8 saniyede bir kontrol et
+  function startRequestsPolling() {
+    clearInterval(S.reqTimer);
+    S.reqTimer = setInterval(async () => {
+      if (!S.room || !S.approval || !amAdmin()) return;
+      if (!$('#sheet').classList.contains('hidden')) return; // açık bir pencere varken araya girme
+      try {
+        const j = await api({ action: 'requests', room: S.code, identity: S.id });
+        const req = (j.requests || [])[0];
+        if (!req) return;
+        if (!S.seenReq.has(req.id)) { S.seenReq.add(req.id); beep(2, 880); vibrate([0, 150, 100, 150]); speak(req.name + ' odaya girmek istiyor'); }
+        sheet('<h3>🔔 Odaya giriş isteği</h3><p style="font-size:20px;color:#fff;font-weight:800">' + esc(req.name) + '</p><p>Şifreyi doğru girdi ve odaya girmek istiyor. Tanıyorsan onayla; bir kez onaylanan bir daha sorulmaz.</p>' +
+          '<button class="mbtn amber" id="rqOk">✅ Onayla</button><button class="mbtn danger" id="rqNo">⛔ Reddet</button>', (b) => {
+          const answer = async (ok) => {
+            closeSheet();
+            try { await api({ action: 'approve', room: S.code, identity: S.id, target: req.id, ok }); toast(ok ? '✅ ' + req.name + ' onaylandı, odaya giriyor.' : '⛔ ' + req.name + ' reddedildi.'); }
+            catch (e) { toast('Yapılamadı: ' + (e.message || 'sunucuya ulaşılamadı')); }
+          };
+          b.querySelector('#rqOk').onclick = () => answer(true);
+          b.querySelector('#rqNo').onclick = () => answer(false);
+        });
+      } catch (e) {}
+    }, 8000);
   }
 
   async function leaveRoom(userLeft) {
@@ -358,6 +415,7 @@
       try { await r.disconnect(); } catch (e) {}
     }
     stopTicks(); stopGeo(); keepAwake(false);
+    clearInterval(S.reqTimer); S.nicks = {}; S.approval = false;
     $$('audio.lk').forEach((a) => a.remove());
     S.micOn = false; S.open = false; S.live = false; S.locs = {};
     if (sharedRadio) stopRadio(true);
@@ -381,7 +439,7 @@
       }
       if (S.mySos) publishSos(false);
       if (S.myLoc && S.locMode !== 'off') sendLoc(true);
-      if (p.name) toast(p.name + ' odaya katıldı');
+      if (p.name) toast(dispName(p.identity, p.name) + ' odaya katıldı');
       renderRoom(); renderMapRiders();
     });
     room.on(E.ParticipantDisconnected, (p) => {
@@ -431,7 +489,9 @@
   const openMicLocked = () => S.lockedIds.has(S.id) || S.silenced.has(S.id) || (S.roomLock && !amAdmin());
   function publishAdmins() { publish({ t: 'adm', owner: S.owner, ids: Array.from(S.admins) }); }
   function publishLocks() { publish({ t: 'locks', ids: Array.from(S.lockedIds), sil: Array.from(S.silenced), all: S.roomLock }); }
-  function nameOf(p) { return (p && p.name) || 'Bir sürücü'; }
+  // Bu odada görünen ad: yönetici görev adı verdiyse o (ör. "Dalgıç"), yoksa kişinin kendi adı
+  function dispName(id, raw, fallback) { return (id && S.nicks[id]) || raw || fallback || 'Sürücü'; }
+  function nameOf(p) { return dispName(p && p.identity, p && p.name, 'Bir sürücü'); }
 
   function onData(payload, participant) {
     if (!payload || !payload.length || payload[0] !== 123) return; // { ile başlamıyorsa (müzik ses paketi) geç
@@ -442,7 +502,7 @@
       case 'mode': if (id) { S.modes[id] = j.m || 'ptt'; renderRoom(); } break;
       case 'loc':
         if (!id) return;
-        S.locs[id] = { id, name: participant.name || 'Sürücü', lat: +j.lat, lon: +j.lon, spd: j.spd | 0, at: Date.now() };
+        S.locs[id] = { id, name: dispName(id, participant.name), lat: +j.lat, lon: +j.lon, spd: j.spd | 0, at: Date.now() };
         renderMapRiders(); break;
       case 'loc_off': if (id) { delete S.locs[id]; renderMapRiders(); } break;
       case 'call':
@@ -454,7 +514,7 @@
       case 'ping': onPing(j, id, name); break;
       case 'sos': onSos(j, id, name); break;
       case 'music': onMusic(j); break;
-      case 'adm': case 'locks': case 'mod': onAdminMsg(j, id, name); break;
+      case 'adm': case 'locks': case 'mod': case 'nick': case 'apr': onAdminMsg(j, id, name); break;
       default: break;
     }
   }
@@ -462,6 +522,17 @@
   function onAdminMsg(j, from, fromName) {
     if (!isAdmin(from)) return; // sadece yöneticiden gelen komutlar
     fromName = fromName === 'Bir sürücü' ? 'Oda yöneticisi' : fromName;
+    if (j.t === 'apr') { S.approval = !!j.on; return; }
+    if (j.t === 'nick') {
+      const n = String(j.n || '').trim();
+      if (j.id) {
+        if (n) S.nicks[j.id] = n; else delete S.nicks[j.id];
+        if (S.locs[j.id] && n) S.locs[j.id].name = n;
+        if (j.id === S.id && n) toast(fromName + ' bu odadaki adını "' + n + '" yaptı.');
+        renderRoom(); renderMapRiders();
+      }
+      return;
+    }
     if (j.t === 'adm') {
       S.admins = new Set((j.ids || []).filter(Boolean));
       if (j.owner && !S.owner) S.owner = j.owner;
@@ -560,20 +631,55 @@
     ring.classList.toggle('glow', S.micOn);
     ring.style.setProperty('--tc', S.live ? '#ff3b3b' : '#46e38a');
   }
-  // Konuşurken halka sesle birlikte parlasın
+  // Konuşurken halka sesle birlikte parlasın; başkası konuşunca düğmenin içinde ses dalgası görünsün
+  const waveEl = document.createElement('div');
+  waveEl.className = 'wave'; waveEl.innerHTML = '<i></i><i></i><i></i><i></i><i></i><i></i><i></i>';
+  $('#pttIcon').after(waveEl);
+  let remoteOn = false;
   setInterval(() => {
-    if (!S.room || !S.micOn) return;
-    const lv = Math.min(1, (S.room.localParticipant.audioLevel || 0) * 2.5);
-    $('#ring').style.setProperty('--lv', lv.toFixed(2));
+    const ring = $('#ring');
+    if (!S.room) { if (remoteOn) { remoteOn = false; ptt.classList.remove('rx'); ring.classList.remove('rxglow'); } return; }
+    let rl = 0;
+    S.room.remoteParticipants.forEach((p) => { if (p.isSpeaking) rl = Math.max(rl, Math.max(p.audioLevel || 0, 0.2)); });
+    const on = rl > 0.01;
+    if (on !== remoteOn) { remoteOn = on; ptt.classList.toggle('rx', on); ring.classList.toggle('rxglow', on); }
+    if (on) {
+      ring.style.setProperty('--rx', Math.min(1, rl * 2).toFixed(2));
+      ring.style.setProperty('--tc', S.live ? '#ff3b3b' : '#46e38a');
+      $$('#ptt .wave i').forEach((b, i) => { const mid = 1 - Math.abs(i - 3) / 3 * 0.55; b.style.height = Math.round(6 + 30 * mid * (0.35 + 0.65 * Math.min(1, rl * 2)) * (0.55 + 0.45 * Math.random())) + 'px'; });
+    }
+    if (S.micOn) {
+      const lv = Math.min(1, (S.room.localParticipant.audioLevel || 0) * 2.5);
+      ring.style.setProperty('--lv', lv.toFixed(2));
+    }
   }, 120);
+
+  // Sürekli Açık modunda 5 dakika hiç konuşmazsan bas-konuşa geç (1 dakika önce uyar)
+  let liveWarned = false;
+  setInterval(() => {
+    if (!S.room || !S.open || !S.live) { S.liveSince = 0; liveWarned = false; return; }
+    const lp = S.room.localParticipant;
+    if (!S.liveSince || (S.micOn && lp.isSpeaking && (lp.audioLevel || 0) > 0.07)) { S.liveSince = Date.now(); liveWarned = false; return; }
+    const quiet = Date.now() - S.liveSince;
+    if (quiet > 5 * 60000) {
+      S.liveSince = 0; liveWarned = false; forcePtt();
+      toast('🎙 5 dakikadır konuşmadığın için bas-konuş moduna geçildi.', 7000);
+      speak('Bas konuş moduna geçildi. Konuşmak için düğmeye basılı tutun.'); vibrate([0, 300, 200, 300]);
+    } else if (quiet > 4 * 60000 && !liveWarned) {
+      liveWarned = true;
+      speak('Beş dakikadır konuşmadınız. Bir dakika sonra bas konuş moduna geçilecektir.'); vibrate([0, 300, 200, 300]);
+      sheet('<h3>Sürekli Açık: 4 dakikadır konuşmadın</h3><p>1 dakika sonra bas-konuş moduna geçilecek; özel konuşmaların odaya gitmesin.</p><button class="mbtn amber" id="lvKeep">MİKROFON AÇIK KALSIN</button>',
+        (b) => { b.querySelector('#lvKeep').onclick = () => { S.liveSince = Date.now(); liveWarned = false; closeSheet(); }; });
+    }
+  }, 1000);
 
   // ------------------------------------------------------------ oda ekranı
   function riders() {
     const r = S.room; if (!r) return [];
     const list = [];
     const lp = r.localParticipant;
-    list.push({ id: S.id, name: S.name || 'Sürücü', me: true, speaking: lp.isSpeaking && S.micOn, mode: currentMode() });
-    r.remoteParticipants.forEach((p) => list.push({ id: p.identity, name: p.name || 'Sürücü', me: false, speaking: p.isSpeaking, mode: S.modes[p.identity] || 'ptt' }));
+    list.push({ id: S.id, name: dispName(S.id, S.name), me: true, speaking: lp.isSpeaking && S.micOn, mode: currentMode() });
+    r.remoteParticipants.forEach((p) => list.push({ id: p.identity, name: dispName(p.identity, p.name), me: false, speaking: p.isSpeaking, mode: S.modes[p.identity] || 'ptt' }));
     return list;
   }
   function renderRoom() {
@@ -644,6 +750,7 @@
       '<button class="mbtn raised" data-a="ptt">🎙 Bas-konuşa al</button>' +
       (locked ? '<button class="mbtn raised" data-a="unlock">🔓 Açık mikrofon kilidini kaldır</button>' : (!isOwner ? '<button class="mbtn raised" data-a="lock">🔒 Bas-konuşa al ve kilitle</button>' : '')) +
       (!isOwner ? '<button class="mbtn ' + (sil ? 'raised' : 'danger') + '" data-a="sil">' + (sil ? '🔊 Susturmayı kaldır' : '🔇 Sustur (hiç konuşamasın)') + '</button>' : '') +
+      '<button class="mbtn raised" data-a="nick">✏️ Odadaki adını değiştir (görev adı)</button>' +
       (!isOwner ? '<button class="mbtn raised" data-a="adm">' + (isAdmin(id) ? '⭐ Yöneticiliğini al' : '⭐ Yönetici yap') + '</button>' : '') +
       (!isOwner ? '<button class="mbtn danger" data-a="kick">🚫 Odadan çıkar</button>' : '') +
       '<button class="mbtn raised" data-a="x">Kapat</button>', (b) => {
@@ -661,6 +768,7 @@
         if (a === 'unlock') { S.lockedIds.delete(id); publishLocks(); toast(r.name + ' artık açık mikrofon kullanabilir.'); renderRoom(); }
         if (a === 'sil') modSilence(id, r.name, !sil);
         if (a === 'adm') modAdmin(id, r.name, !isAdmin(id));
+        if (a === 'nick') askNick(id, r.name);
       });
     });
   }
@@ -672,6 +780,7 @@
       '<button class="mbtn raised" data-a="lock">' + (S.roomLock ? '🔓 Oda kilidini aç (herkes mod seçebilsin)' : '🔒 Odayı bas-konuşa kilitle') + '</button>' +
       '<button class="mbtn danger" data-a="silall">🔇 Herkesi sustur (sadece yöneticiler konuşsun)</button>' +
       ((S.silenced.size || S.lockedIds.size || S.roomLock) ? '<button class="mbtn raised" data-a="free">🔊 Herkesi serbest bırak</button>' : '') +
+      (S.id === S.owner && (S.locked || S.permanent) ? '<button class="mbtn raised" data-a="apr">' + (S.approval ? '🛡 Girişte onay: AÇIK (kapatmak için dokun)' : '🛡 Girişte yönetici onayı iste') + '</button>' : '') +
       '<p>Tek bir kişi için listede ismine dokun. Gizlilik gereği kimsenin mikrofonu uzaktan açılamaz.</p>' +
       '<button class="mbtn raised" data-a="x">Kapat</button>', (b) => {
       b.querySelectorAll('[data-a]').forEach((btn) => btn.onclick = () => {
@@ -680,9 +789,30 @@
         if (a === 'lock') modRoomLock(!S.roomLock);
         if (a === 'silall') modSilenceAll();
         if (a === 'free') modReleaseAll();
+        if (a === 'apr') setApproval(!S.approval);
       });
     });
   };
+  function askNick(id, name) {
+    sheet('<h3>' + esc(name) + ' bu odada hangi adla görünsün?</h3><p>Sadece bu odada görünür; diğer odalarda kendi adıyla görünmeye devam eder.</p>' +
+      '<input id="nkIn" class="input inset" maxlength="24" placeholder="ör. Dalgıç, Muhabere, Öncü">' +
+      '<button class="mbtn amber" id="nkOk">Kaydet</button><button class="mbtn raised" id="nkReset">↩ Kendi adına döndür</button><button class="mbtn raised" id="nkNo">Vazgeç</button>', (b) => {
+      const inp = b.querySelector('#nkIn'); setTimeout(() => inp.focus(), 50);
+      b.querySelector('#nkNo').onclick = closeSheet;
+      b.querySelector('#nkOk').onclick = () => { const v = inp.value.trim(); if (!v) return; closeSheet(); modNick(id, name, v); };
+      b.querySelector('#nkReset').onclick = () => { closeSheet(); modNick(id, name, ''); };
+    });
+  }
+  async function modNick(id, name, nick) {
+    nick = String(nick || '').replace(/\s+/g, ' ').trim().substring(0, 24);
+    try {
+      await api({ action: 'nick', room: S.code, identity: S.id, target: id, nick });
+      if (nick) S.nicks[id] = nick; else delete S.nicks[id];
+      publish({ t: 'nick', id, n: nick });
+      toast(nick ? name + ' bu odada artık "' + nick + '" olarak görünüyor.' : name + ' kendi adına döndü.');
+      renderRoom(); renderMapRiders();
+    } catch (e) { toast('Yapılamadı: ' + (e.message || 'sunucuya ulaşılamadı')); }
+  }
   function serverMute(target) { api({ action: 'mute', room: S.code, identity: S.id, target }).catch(() => {}); }
   function modCall(target, op) { return api({ action: 'mod', room: S.code, identity: S.id, target, op }); }
   function modPtt(id, name, lock) {
@@ -691,6 +821,14 @@
     serverMute(id);
     toast(name + ' bas-konuşa alındı' + (lock ? ' ve açık mikrofonu kilitlendi.' : '.'));
     renderRoom();
+  }
+  async function setApproval(on) {
+    try {
+      const j = await api({ action: 'create', room: S.code, identity: S.id, displayName: S.title, permanent: S.permanent, password: 'keep', approval: on });
+      S.approval = !!(j.room && j.room.approval);
+      publish({ t: 'apr', on: S.approval });
+      toast(S.approval ? '🛡 Girişte yönetici onayı açıldı.' : 'Girişte yönetici onayı kapatıldı.');
+    } catch (e) { toast('Yapılamadı: ' + (e.message || 'sunucuya ulaşılamadı')); }
   }
   function modAllPtt() { publish({ t: 'mod', to: '*', a: 'ptt', lock: false }); serverMute('*'); toast('Odadaki herkes bas-konuşa alındı.'); }
   function modRoomLock(on) {

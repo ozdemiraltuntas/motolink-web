@@ -222,3 +222,11 @@ button:active{filter:brightness(.92);transform:translateY(1px)}
 
 .sta .lg{position:relative;overflow:hidden}
 .sta .lg img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#fff;padding:3px}
+
+/* başkası konuşurken: düğmenin içinde ses dalgası ve çevresinde parlama */
+.knobbig .wave{display:none;height:38px;align-items:center;gap:4px}
+.knobbig .wave i{width:6px;height:8px;border-radius:3px;background:var(--tcw,#46e38a);transition:height .11s}
+.knobbig.rx:not(.on) .wave{display:flex}
+.knobbig.rx:not(.on) .mi{display:none}
+.knobbig.live .wave i{background:#ff3b3b}
+.groove.rxglow{box-shadow:inset 0 3px 8px rgba(0,0,0,.95),0 0 0 3px var(--tc),0 0 calc(14px + var(--rx,0) * 34px) var(--tc)}
