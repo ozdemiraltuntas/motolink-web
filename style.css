@@ -245,3 +245,5 @@ button:active{filter:brightness(.92);transform:translateY(1px)}
 .pbar{display:flex;gap:8px;margin:8px 0 2px}.pbar .mbtn{margin-top:0;font-size:14px;min-height:42px}
 .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;max-height:60vh;overflow-y:auto;margin:8px 0}
 .pgrid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;cursor:pointer}
+.fhead{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:16px;margin-bottom:8px}.fhead .tx{flex:1}.fhead small{display:block;color:var(--soft);font-size:12px}.fhead b{font-size:18px;letter-spacing:1px}
+.mbtn[disabled]{opacity:.6}

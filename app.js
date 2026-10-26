@@ -755,14 +755,18 @@
         (b) => { b.querySelector('#mx').onclick = closeSheet; });
       return;
     }
+    const fBtn = isFriend(friendCode(id)) ? '<button class="mbtn raised" disabled>✅ Arkadaş listende</button>' : '<button class="mbtn amber" data-a="friend">👤 Arkadaş olarak ekle</button>';
     if (!amAdmin()) {
-      sheet('<h3>' + esc(r.name) + '</h3><p>Konuşma modu: ' + MODES[r.mode] + (isAdmin(id) ? ' · oda yöneticisi' : '') + '</p><button class="mbtn raised" id="mx">Kapat</button>',
-        (b) => { b.querySelector('#mx').onclick = closeSheet; });
+      sheet('<h3>' + esc(r.name) + '</h3><p>Konuşma modu: ' + MODES[r.mode] + (isAdmin(id) ? ' · oda yöneticisi' : '') + '</p>' + fBtn + '<button class="mbtn raised" id="mx">Kapat</button>',
+        (b) => {
+          b.querySelector('#mx').onclick = closeSheet;
+          const fb = b.querySelector('[data-a="friend"]'); if (fb) fb.onclick = () => { closeSheet(); addFriendFromRoom(id, r.name); };
+        });
       return;
     }
     const isOwner = id === S.owner, locked = S.lockedIds.has(id), sil = S.silenced.has(id);
     sheet('<h3>' + esc(r.name) + '</h3><p>' + (isOwner ? '👑 Odayı açan' : isAdmin(id) ? '⭐ Oda yöneticisi' : 'Üye') + (sil ? ' · 🔇 susturuldu' : locked ? ' · 🔒 bas-konuşa kilitli' : '') + '</p>' +
-      '<button class="mbtn raised" data-a="ptt">🎙 Bas-konuşa al</button>' +
+      fBtn + '<button class="mbtn raised" data-a="ptt">🎙 Bas-konuşa al</button>' +
       (locked ? '<button class="mbtn raised" data-a="unlock">🔓 Açık mikrofon kilidini kaldır</button>' : (!isOwner ? '<button class="mbtn raised" data-a="lock">🔒 Bas-konuşa al ve kilitle</button>' : '')) +
       (!isOwner ? '<button class="mbtn ' + (sil ? 'raised' : 'danger') + '" data-a="sil">' + (sil ? '🔊 Susturmayı kaldır' : '🔇 Sustur (hiç konuşamasın)') + '</button>' : '') +
       '<button class="mbtn raised" data-a="nick">✏️ Odadaki adını değiştir (görev adı)</button>' +
@@ -772,6 +776,7 @@
       b.querySelectorAll('[data-a]').forEach((btn) => btn.onclick = () => {
         const a = btn.dataset.a;
         if (a === 'x') return closeSheet();
+        if (a === 'friend') { closeSheet(); addFriendFromRoom(id, r.name); return; }
         if (a === 'kick') {
           sheet('<h3>' + esc(r.name) + ' odadan çıkarılsın mı?</h3><p>30 dakika boyunca geri giremez.</p><button class="mbtn danger" id="ky">🚫 Evet, odadan çıkar</button><button class="mbtn raised" id="kn">Vazgeç</button>',
             (bb) => { bb.querySelector('#kn').onclick = closeSheet; bb.querySelector('#ky').onclick = () => { closeSheet(); modKick(id, r.name); }; });
@@ -1263,6 +1268,140 @@
       (b) => { b.querySelector('#wn').onclick = closeSheet; b.querySelector('#wy').onclick = async () => { closeSheet(); await leaveRoom(true); store.clear(); location.reload(); }; });
   };
 
+  // ------------------------------------------------------------ arkadaşlarım (Android ile aynı kodlar)
+  // Arkadaş kodu kimlikten çıkar (U + ilk 10 harf/rakam). Liste bu tarayıcıda saklanır.
+  // İkili arama: iki kişiye özel oda (P-…), davet sunucunun posta kutusuyla gider; web açıkken 20 sn'de bir bakılır.
+  function friendCode(identity) { return 'U' + String(identity || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10); }
+  const MY_CODE = friendCode(S.id);
+  function prettyCode(c) { return 'U' + c.slice(1).match(/.{1,4}/g).join('-'); }
+  function cleanCode(t) { let c = String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); if (!c.startsWith('U')) c = 'U' + c; return c.length >= 7 && c.length <= 21 ? c : null; }
+  function friends() { return store.get('friends', []) || []; }
+  function isFriend(code) { return friends().some((f) => f.code === code); }
+  function saveFriends(l) { store.set('friends', l); renderFriends(); }
+  function addFriend(name, code) {
+    const c = cleanCode(code);
+    if (!c) return 'Kod hatalı. Arkadaşının "Arkadaş kodum"unu yaz.';
+    if (c === MY_CODE) return 'Bu senin kendi kodun.';
+    saveFriends(friends().filter((f) => f.code !== c).concat([{ code: c, name: String(name || '').trim().slice(0, 24) || 'Arkadaş' }]));
+    store.set('callers', (store.get('callers', []) || []).filter((x) => x.code !== c));
+    api({ action: 'direct', room: 'PUSH', identity: S.id, name: S.name || 'Bir sürücü', targets: [c], data: { type: 'friendreq' } }).catch(() => {});
+    return null;
+  }
+  function addFriendFromRoom(id, name) {
+    const e = addFriend(name, friendCode(id));
+    toast(e || ('👤 ' + name + ' arkadaşlarına eklendi. Ana sayfadaki Arkadaşlarım\'dan arayabilirsin.'), 5000);
+  }
+  async function pairRoom(a, b) {
+    const key = [a, b].sort().join('|');
+    const d = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key)));
+    return 'P-' + Array.from(d.slice(0, 5)).map((x) => x.toString(16).padStart(2, '0').toUpperCase()).join('');
+  }
+  async function callFriend(f) {
+    try {
+      const room = await pairRoom(MY_CODE, f.code);
+      toast('📞 ' + f.name + ' aranıyor… Açınca konuşmaya başlarsınız.', 6000);
+      api({ action: 'direct', room: 'PUSH', identity: S.id, name: S.name || 'Bir sürücü', targets: [f.code], data: { type: 'call', room } })
+        .catch(() => toast('Arama daveti gönderilemedi (internet?)'));
+      if (S.room && S.code !== room) await leaveRoom(true);
+      if (!S.room) joinRoom(room, '');
+    } catch (e) { toast('Arama başlatılamadı: ' + e.message); }
+  }
+  function renderFriends() {
+    const box = $('#friends'); if (!box) return;
+    const l = friends(), callers = (store.get('callers', []) || []).filter((c) => !isFriend(c.code)), seen = store.get('lastSeen', {}) || {};
+    $('#myCode').textContent = prettyCode(MY_CODE);
+    box.innerHTML = callers.map((c, i) => '<div class="row raised"><div class="av" style="background:#ffd23c">' + esc(initial(c.name)) + '</div><div class="tx"><b>' + esc(c.name) + '</b><small>' + esc(c.note || '') + '</small></div>' +
+        '<button class="x" data-cadd="' + i + '" aria-label="Kaydet" style="color:var(--green)">＋</button><button class="x" data-cdel="' + i + '" aria-label="Kapat">✕</button></div>').join('') +
+      (l.length ? l.map((f, i) => {
+        const ls = seen[f.code];
+        const sub = prettyCode(f.code) + (ls ? ' · 📍 ' + new Date(ls.at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : '');
+        return '<div class="row raised" data-f="' + i + '"><div class="av" style="background:' + colorOf(f.code) + '">' + esc(initial(f.name)) + '</div><div class="tx"><b>' + esc(f.name) + '</b><small>' + sub + '</small></div>' +
+          '<button class="x" data-call="' + i + '" aria-label="Ara" style="color:var(--green);font-size:20px">📞</button></div>';
+      }).join('') : '<div class="note" style="margin:0 2px">Henüz arkadaş yok. Odada birinin adına dokunup "Arkadaş olarak ekle" de ya da kodunu yaz.</div>');
+    box.querySelectorAll('[data-cadd]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); const c = callers[+b.dataset.cadd]; const er = addFriend(c.name, c.code); toast(er || (c.name + ' arkadaşlarına eklendi.')); });
+    box.querySelectorAll('[data-cdel]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); const c = callers[+b.dataset.cdel]; store.set('callers', (store.get('callers', []) || []).filter((x) => x.code !== c.code)); renderFriends(); });
+    box.querySelectorAll('[data-call]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); callFriend(l[+b.dataset.call]); });
+    box.querySelectorAll('[data-f]').forEach((row) => row.onclick = () => friendMenu(l[+row.dataset.f]));
+  }
+  function friendMenu(f) {
+    const ls = (store.get('lastSeen', {}) || {})[f.code];
+    sheet('<h3>' + esc(f.name) + '</h3><p>Kodu: ' + prettyCode(f.code) + '</p>' +
+      '<button class="mbtn amber" id="fmCall">📞 Ara</button>' +
+      (ls ? '<button class="mbtn raised" id="fmLoc">📍 Son görülen konum (' + new Date(ls.at).toLocaleString('tr-TR', { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) + ')</button>' : '') +
+      '<button class="mbtn danger" id="fmDel">🗑 Arkadaşlarımdan çıkar</button><button class="mbtn raised" id="fmNo">Kapat</button>', (b) => {
+      b.querySelector('#fmNo').onclick = closeSheet;
+      b.querySelector('#fmCall').onclick = () => { closeSheet(); callFriend(f); };
+      const lb = b.querySelector('#fmLoc'); if (lb) lb.onclick = () => window.open('https://maps.apple.com/?ll=' + ls.lat + ',' + ls.lon + '&q=' + encodeURIComponent(f.name), '_blank');
+      b.querySelector('#fmDel').onclick = () => { closeSheet(); saveFriends(friends().filter((x) => x.code !== f.code)); };
+    });
+  }
+  $('#addFriendBtn').onclick = () => {
+    sheet('<h3>＋ Arkadaş ekle</h3><p>Arkadaşının uygulamada "Arkadaş kodum" yazan kodunu gir. Odadaysanız adına dokunup "Arkadaş olarak ekle" de diyebilirsin.</p>' +
+      '<input id="afName" class="input inset" maxlength="24" placeholder="Adı"><input id="afCode" class="input inset" maxlength="30" placeholder="Kodu (U…)" autocapitalize="characters" autocomplete="off">' +
+      '<div class="small" id="afErr" style="color:#ff6b6b"></div><button class="mbtn amber" id="afOk">Ekle</button><button class="mbtn raised" id="afNo">Vazgeç</button>', (b) => {
+      b.querySelector('#afNo').onclick = closeSheet;
+      b.querySelector('#afOk').onclick = () => {
+        const er = addFriend(b.querySelector('#afName').value, b.querySelector('#afCode').value);
+        if (er) b.querySelector('#afErr').textContent = er; else { closeSheet(); toast('Arkadaş eklendi.'); }
+      };
+    });
+  };
+  $('#myCodeBtn').onclick = () => {
+    let img = '';
+    try { const q = qrcode(0, 'M'); q.addData('motolink://friend?c=' + MY_CODE + '&n=' + encodeURIComponent(S.name || 'Sürücü')); q.make(); img = q.createDataURL(6, 2); } catch (e) {}
+    sheet('<h3>Arkadaş kodum</h3><p>Arkadaşın Android uygulamasında QR\'ı okutsun ya da kodu yazsın.</p>' +
+      (img ? '<div class="qrbox"><img src="' + img + '" alt="QR"></div>' : '') + '<div class="codebig">' + prettyCode(MY_CODE) + '</div>' +
+      '<button class="mbtn amber" id="mcShare">Paylaş</button><button class="mbtn raised" id="mcNo">Kapat</button>', (b) => {
+      b.querySelector('#mcNo').onclick = closeSheet;
+      b.querySelector('#mcShare').onclick = async () => {
+        const text = 'MotoLink arkadaş kodum: ' + prettyCode(MY_CODE) + '\nUygulamada Arkadaşlarım > Ekle ile beni ekle.';
+        try { if (navigator.share) { await navigator.share({ title: 'MotoLink', text }); return; } } catch (e) { return; }
+        try { await navigator.clipboard.writeText(text); toast('Kod kopyalandı.'); } catch (e) { toast(text, 8000); }
+      };
+    });
+  };
+  // Gelenler: arama daveti, "seni ekledi", son görülen konum
+  let evSince = 0, evBusy = false;
+  async function pollDirect() {
+    if (evBusy || document.visibilityState !== 'visible') return;
+    evBusy = true;
+    try {
+      const j = await api({ action: 'events', room: 'PUSH', identity: S.id, rooms: [MY_CODE], since: evSince });
+      const first = !evSince;
+      evSince = j.now || Date.now();
+      if (!first) (j.events || []).forEach(onDirectEvent);
+    } catch (e) {}
+    evBusy = false;
+  }
+  const seenEv = new Set();
+  function onDirectEvent(ev) {
+    const key = ev.type + '|' + ev.by + '|' + (ev.t || ev.at || '');
+    if (seenEv.has(key)) return; seenEv.add(key);
+    const code = friendCode(ev.by), f = friends().find((x) => x.code === code), name = (f && f.name) || ev.name || 'Bir sürücü';
+    const noteCaller = (note) => { if (f) return; const l = (store.get('callers', []) || []).filter((x) => x.code !== code); l.unshift({ code, name, note }); store.set('callers', l.slice(0, 10)); renderFriends(); };
+    if (ev.type === 'call' && ev.room) {
+      if (S.room && S.code === ev.room) return;
+      noteCaller('📞 Seni aradı');
+      try { if (navigator.vibrate) navigator.vibrate([300, 150, 300]); } catch (e) {}
+      sheet('<h3>📞 ' + esc(name) + ' seni arıyor</h3><p>Kabul edersen ikinize özel odaya girersin.</p><button class="mbtn amber" id="clOk">CEVAPLA</button><button class="mbtn raised" id="clNo">Reddet</button>', (b) => {
+        b.querySelector('#clNo').onclick = closeSheet;
+        b.querySelector('#clOk').onclick = async () => { closeSheet(); if (S.room) await leaveRoom(true); joinRoom(ev.room, ''); };
+      });
+    } else if (ev.type === 'friendreq') {
+      noteCaller('👋 Seni arkadaş olarak ekledi');
+      if (!f) toast('👋 ' + name + ' seni arkadaş olarak ekledi. Ana sayfadan sen de ekle.', 6000);
+    } else if (ev.type === 'lastloc' && ev.lat && ev.lon) {
+      const seen = store.get('lastSeen', {}) || {};
+      seen[code] = { lat: +ev.lat, lon: +ev.lon, at: +ev.at || Date.now() };
+      store.set('lastSeen', seen); renderFriends();
+      toast('📍 ' + name + ' son konumunu paylaştı.');
+    }
+  }
+  renderFriends();
+  pollDirect();
+  setInterval(pollDirect, 20000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollDirect(); });
+
   // ------------------------------------------------------------ odada fotoğraf (Android 0.9.55 ile aynı)
   // Fotoğraf küçültülüp veri kanalından parça parça gider; sunucuda saklanmaz, odadan çıkınca silinir.
   const PH = { list: [], pend: {}, sending: null };
@@ -1398,50 +1537,8 @@
     try { await leaveRoom(true); } catch (e) {}
     sheet('<h3>✅ Kimliğin geri geldi</h3><p>' + esc(msg) + '</p><button class="mbtn amber" id="swOk">Tamam</button>', (b) => { b.querySelector('#swOk').onclick = () => location.reload(); });
   }
-  function renderAccount() {
-    const box = $('#accBox');
-    const mail = store.get('gmail', '');
-    if (mail) {
-      box.innerHTML = '<div class="small" style="color:var(--text)">✅ Google hesabına bağlı: <b>' + esc(mail) + '</b></div><button class="mbtn raised" id="gUnlink">Bağlantıyı kaldır</button>';
-      $('#gUnlink').onclick = () => sheet('<h3>Google bağlantısı kaldırılsın mı?</h3><p>Kimliğin bu tarayıcıda kalır. Ama veriler silinirse Google ile geri getiremezsin; kimlik kodun yine işe yarar.</p><button class="mbtn danger" id="ulY">Kaldır</button><button class="mbtn raised" id="ulN">Vazgeç</button>', (b) => {
-        b.querySelector('#ulN').onclick = closeSheet;
-        b.querySelector('#ulY').onclick = async () => { closeSheet(); try { await api({ action: 'unlink', room: 'PUSH', identity: S.id }); store.set('gmail', ''); renderAccount(); toast('Google bağlantısı kaldırıldı.'); } catch (e) { toast(e.message); } };
-      });
-      return;
-    }
-    box.innerHTML = '<div id="gBtn" style="display:flex;justify-content:center;min-height:44px;margin-top:6px"></div><div class="small" id="gNote" style="margin-top:6px">Önerilen: yeni telefonda aynı Google hesabıyla bağlanınca her şey geri gelir.</div>';
-    setupGoogle();
-  }
-  let gisClient = '';
-  async function setupGoogle() {
-    try {
-      if (!gisClient) { const c = await api({ action: 'config', room: 'PUSH', identity: S.id }); gisClient = c.googleClientId || ''; }
-      if (!gisClient) { $('#gNote').textContent = 'Google ile giriş henüz kurulmadı. Şimdilik kimlik kodunu kullan.'; return; }
-      if (!window.google || !google.accounts) {
-        await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
-      }
-      google.accounts.id.initialize({ client_id: gisClient, callback: onGoogle, ux_mode: 'popup', auto_select: false });
-      const el = $('#gBtn'); if (!el) return;
-      google.accounts.id.renderButton(el, { theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', locale: 'tr', width: Math.min(320, el.clientWidth || 300) });
-    } catch (e) {
-      const n = $('#gNote'); if (n) n.textContent = 'Google girişi yüklenemedi (internet?). Kimlik kodunu kullanabilirsin.';
-    }
-  }
-  async function onGoogle(resp) {
-    busy(true, 'Google hesabı doğrulanıyor…');
-    try {
-      const j = await api({ action: 'gauth', room: 'PUSH', identity: S.id, idToken: resp.credential, rooms: roomsForBackup() });
-      busy(false);
-      if (j.identity && j.identity !== S.id) {
-        switchIdentity(j.identity, j.rooms, j.email);
-        afterSwitch(j.email + ' hesabındaki kimliğin geri geldi' + (j.rooms && j.rooms.length ? ', ' + j.rooms.length + ' oda listene eklendi.' : '.'));
-      } else {
-        store.set('gmail', j.email || '');
-        renderAccount(); backupSoon();
-        toast('Bağlandı: ' + (j.email || 'Google hesabı'), 5000);
-      }
-    } catch (e) { busy(false); toast(e.message, 6000); }
-  }
+  // 1.1.7: "Google ile bağlan" kaldırıldı; kimlik kodu ile yedek / geri yükleme kalır
+  function renderAccount() { const box = $('#accBox'); if (box) box.innerHTML = ''; }
   $('#accCode').onclick = () => {
     const code = 'ML-' + S.id;
     let img = '';
