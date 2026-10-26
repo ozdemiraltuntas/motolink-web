@@ -186,7 +186,7 @@
       : '<div class="note" style="margin:0 2px">Girdiğin odalar burada listelenir.</div>';
     $$('#recent .row').forEach((el) => el.addEventListener('click', (e) => {
       const rs = store.get('rooms', []);
-      if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); renderHome(); return; }
+      if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); backupSoon(); renderHome(); return; }
       const r = rs[+el.dataset.i]; if (r) joinRoom(r.code, r.pw || '');
     }));
   }
@@ -194,6 +194,7 @@
     const rs = store.get('rooms', []).filter((r) => r.code !== code);
     rs.unshift({ code, name: name || code, locked: !!locked, pw: pw || '' });
     store.set('rooms', rs.slice(0, 15));
+    backupSoon();
   }
 
   function askName(after) {
@@ -1247,6 +1248,118 @@
     sheet('<h3>Bu telefondaki bilgilerin silinsin mi?</h3><p>Adın, kayıtlı odaların ve ayarların bu tarayıcıdan silinir.</p><button class="mbtn danger" id="wy">🗑 Hepsini sil</button><button class="mbtn raised" id="wn">Vazgeç</button>',
       (b) => { b.querySelector('#wn').onclick = closeSheet; b.querySelector('#wy').onclick = async () => { closeSheet(); await leaveRoom(true); store.clear(); location.reload(); }; });
   };
+
+  // ------------------------------------------------------------ hesap ve yedek (sunucu 0.9.42)
+  // Kimliği geri getirme: Google ile bağlan ya da "ML-" kimlik kodu. Oda listesi şifresiz yedeklenir.
+  let backupT = null;
+  function roomsForBackup() { return store.get('rooms', []).slice(0, 30).map((r) => ({ code: r.code, name: r.name || r.code, locked: !!r.locked, permanent: !!r.permanent, mine: !!r.mine })); }
+  function backupSoon() {
+    clearTimeout(backupT);
+    backupT = setTimeout(() => { api({ action: 'backup', room: 'PUSH', identity: S.id, rooms: roomsForBackup() }).catch(() => {}); }, 4000);
+  }
+  function parseIdCode(raw) {
+    let t = String(raw || '').trim();
+    const q = t.indexOf('c=');
+    if (/^motolink/i.test(t) && q >= 0) t = t.slice(q + 2);
+    t = t.replace(/\s+/g, '');
+    if (/^ML-/i.test(t)) t = t.slice(3);
+    return /^[A-Za-z0-9-]{8,64}$/.test(t) ? t : null;
+  }
+  function switchIdentity(id, rooms, email) {
+    const have = store.get('rooms', []);
+    (rooms || []).forEach((r) => { if (!have.some((h) => h.code === r.code)) have.push({ code: r.code, name: r.name || r.code, locked: !!r.locked, permanent: !!r.permanent, mine: !!r.mine, pw: '' }); });
+    store.set('rooms', have.slice(0, 30));
+    store.set('id', id);
+    store.set('gmail', email || '');
+    store.set('lastRoom', null);
+  }
+  async function afterSwitch(msg) {
+    try { await leaveRoom(true); } catch (e) {}
+    sheet('<h3>✅ Kimliğin geri geldi</h3><p>' + esc(msg) + '</p><button class="mbtn amber" id="swOk">Tamam</button>', (b) => { b.querySelector('#swOk').onclick = () => location.reload(); });
+  }
+  function renderAccount() {
+    const box = $('#accBox');
+    const mail = store.get('gmail', '');
+    if (mail) {
+      box.innerHTML = '<div class="small" style="color:var(--text)">✅ Google hesabına bağlı: <b>' + esc(mail) + '</b></div><button class="mbtn raised" id="gUnlink">Bağlantıyı kaldır</button>';
+      $('#gUnlink').onclick = () => sheet('<h3>Google bağlantısı kaldırılsın mı?</h3><p>Kimliğin bu tarayıcıda kalır. Ama veriler silinirse Google ile geri getiremezsin; kimlik kodun yine işe yarar.</p><button class="mbtn danger" id="ulY">Kaldır</button><button class="mbtn raised" id="ulN">Vazgeç</button>', (b) => {
+        b.querySelector('#ulN').onclick = closeSheet;
+        b.querySelector('#ulY').onclick = async () => { closeSheet(); try { await api({ action: 'unlink', room: 'PUSH', identity: S.id }); store.set('gmail', ''); renderAccount(); toast('Google bağlantısı kaldırıldı.'); } catch (e) { toast(e.message); } };
+      });
+      return;
+    }
+    box.innerHTML = '<div id="gBtn" style="display:flex;justify-content:center;min-height:44px;margin-top:6px"></div><div class="small" id="gNote" style="margin-top:6px">Önerilen: yeni telefonda aynı Google hesabıyla bağlanınca her şey geri gelir.</div>';
+    setupGoogle();
+  }
+  let gisClient = '';
+  async function setupGoogle() {
+    try {
+      if (!gisClient) { const c = await api({ action: 'config', room: 'PUSH', identity: S.id }); gisClient = c.googleClientId || ''; }
+      if (!gisClient) { $('#gNote').textContent = 'Google ile giriş henüz kurulmadı. Şimdilik kimlik kodunu kullan.'; return; }
+      if (!window.google || !google.accounts) {
+        await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true; sc.onload = ok; sc.onerror = no; document.head.appendChild(sc); });
+      }
+      google.accounts.id.initialize({ client_id: gisClient, callback: onGoogle, ux_mode: 'popup', auto_select: false });
+      const el = $('#gBtn'); if (!el) return;
+      google.accounts.id.renderButton(el, { theme: 'filled_black', size: 'large', shape: 'pill', text: 'continue_with', locale: 'tr', width: Math.min(320, el.clientWidth || 300) });
+    } catch (e) {
+      const n = $('#gNote'); if (n) n.textContent = 'Google girişi yüklenemedi (internet?). Kimlik kodunu kullanabilirsin.';
+    }
+  }
+  async function onGoogle(resp) {
+    busy(true, 'Google hesabı doğrulanıyor…');
+    try {
+      const j = await api({ action: 'gauth', room: 'PUSH', identity: S.id, idToken: resp.credential, rooms: roomsForBackup() });
+      busy(false);
+      if (j.identity && j.identity !== S.id) {
+        switchIdentity(j.identity, j.rooms, j.email);
+        afterSwitch(j.email + ' hesabındaki kimliğin geri geldi' + (j.rooms && j.rooms.length ? ', ' + j.rooms.length + ' oda listene eklendi.' : '.'));
+      } else {
+        store.set('gmail', j.email || '');
+        renderAccount(); backupSoon();
+        toast('Bağlandı: ' + (j.email || 'Google hesabı'), 5000);
+      }
+    } catch (e) { busy(false); toast(e.message, 6000); }
+  }
+  $('#accCode').onclick = () => {
+    const code = 'ML-' + S.id;
+    let img = '';
+    try { const q = qrcode(0, 'M'); q.addData('motolink://kimlik?c=' + code); q.make(); img = q.createDataURL(5, 2); } catch (e) {}
+    sheet('<h3>🔑 Kimlik kodum</h3><p>Bu kodu güvenli bir yere kaydet (kendine e-posta at ya da ekran görüntüsü al). Yeni telefonda "Kodla geri yükle" ile gir.</p>' +
+      (img ? '<div style="text-align:center"><img src="' + img + '" alt="QR" style="width:170px;height:170px;background:#fff;border-radius:8px;padding:6px"></div>' : '') +
+      '<div class="input inset" style="height:auto;padding:10px 12px;font-family:monospace;font-size:13px;word-break:break-all;user-select:all;-webkit-user-select:all">' + esc(code) + '</div>' +
+      '<p style="color:#ff6b6b">⚠ Bu kodu kimseyle paylaşma: kodu bilen kişi odalarda SEN olarak görünür.</p>' +
+      '<button class="mbtn amber" id="cdCopy">Kopyala</button><button class="mbtn raised" id="cdClose">Kapat</button>', (b) => {
+      b.querySelector('#cdClose').onclick = closeSheet;
+      b.querySelector('#cdCopy').onclick = async () => {
+        try { await navigator.clipboard.writeText(code); toast('Kopyalandı.'); }
+        catch (e) { try { if (navigator.share) await navigator.share({ text: code }); } catch (e2) {} }
+      };
+    });
+  };
+  $('#accRestore').onclick = () => {
+    sheet('<h3>↩ Kodla geri yükle</h3><p>Eski telefonundaki "ML-" ile başlayan kimlik kodunu yapıştır.</p>' +
+      '<input id="rsIn" class="input inset" placeholder="ML-…" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+      '<p class="small">Bu tarayıcıdaki şu anki kimliğin yerine eski kimliğin geçer.</p><div class="small" id="rsErr" style="color:#ff6b6b"></div>' +
+      '<button class="mbtn amber" id="rsGo">GERİ YÜKLE</button><button class="mbtn raised" id="rsNo">Vazgeç</button>', (b) => {
+      b.querySelector('#rsNo').onclick = closeSheet;
+      b.querySelector('#rsGo').onclick = async () => {
+        const id = parseIdCode(b.querySelector('#rsIn').value);
+        const er = b.querySelector('#rsErr');
+        if (!id) { er.textContent = 'Kod okunamadı. "ML-" ile başlayan kodun tamamını yaz.'; return; }
+        if (id === S.id) { er.textContent = 'Bu zaten bu tarayıcının kimliği.'; return; }
+        busy(true, 'Geri yükleniyor…');
+        try {
+          const j = await api({ action: 'restore', room: 'PUSH', identity: id });
+          busy(false);
+          switchIdentity(id, j.rooms, j.email);
+          afterSwitch(j.rooms && j.rooms.length ? j.rooms.length + ' oda listene eklendi.' : 'Sunucuda oda yedeği bulunamadı; odalara kodla girebilirsin.');
+        } catch (e) { busy(false); er.textContent = e.message; }
+      };
+    });
+  };
+  renderAccount();
+  if (store.get('rooms', []).length && Date.now() - store.get('lastBackup', 0) > 86400000) { store.set('lastBackup', Date.now()); backupSoon(); }
 
   // ------------------------------------------------------------ başlat
   renderHome(); renderRoom(); updateTop(); applyLocModeButtonsOnly();
