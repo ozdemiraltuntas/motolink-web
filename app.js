@@ -186,14 +186,14 @@
       : '<div class="note" style="margin:0 2px">Girdiğin odalar burada listelenir.</div>';
     $$('#recent .row').forEach((el) => el.addEventListener('click', (e) => {
       const rs = store.get('rooms', []);
-      if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); backupSoon(); renderHome(); return; }
+      if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); backupSoon(); setTimeout(() => { try { syncPush(); } catch (e) {} }, 500); renderHome(); return; }
       const r = rs[+el.dataset.i]; if (r) joinRoom(r.code, r.pw || '');
     }));
   }
   function rememberRoom(code, name, locked, pw) {
     const rs = store.get('rooms', []).filter((r) => r.code !== code);
     rs.unshift({ code, name: name || code, locked: !!locked, pw: pw || '' });
-    store.set('rooms', rs.slice(0, 15));
+    store.set('rooms', rs.slice(0, 15)); setTimeout(() => { try { syncPush(); } catch (e) {} }, 500);
     backupSoon();
   }
 
@@ -1611,6 +1611,50 @@
   renderAccount();
   if (store.get('rooms', []).length && Date.now() - store.get('lastBackup', 0) > 86400000) { store.set('lastBackup', Date.now()); backupSoon(); }
 
+  // ------------------------------------------------------------ bildirimler (1.1.8)
+  // iPhone: Ana Ekrana eklenmiş web uygulaması (iOS 16.4+) kapalıyken de bildirim alır (Firebase, ücretsiz).
+  const FB = CFG.FIREBASE || {};
+  const pushReady = () => !!(FB.apiKey && FB.appId && FB.vapidKey) && 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  function loadScript(src) { return new Promise((ok, no) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = no; document.head.appendChild(s); }); }
+  async function enablePush(interactive) {
+    if (!pushReady()) { if (interactive) toast('Bildirim bu tarayıcıda desteklenmiyor. iPhone\'da Safari > Paylaş > Ana Ekrana Ekle ile ekleyip oradan aç (iOS 16.4+).', 8000); return; }
+    try {
+      const perm = Notification.permission === 'granted' ? 'granted' : await Notification.requestPermission();
+      if (perm !== 'granted') { if (interactive) toast('Bildirim izni verilmedi. Ayarlar > Bildirimler > MotoLink\'ten açabilirsin.', 7000); return; }
+      if (!window.firebase) {
+        await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+        await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
+      }
+      if (!firebase.apps.length) firebase.initializeApp({ apiKey: FB.apiKey, projectId: FB.projectId, messagingSenderId: FB.senderId, appId: FB.appId });
+      const reg = await navigator.serviceWorker.ready;
+      const token = await firebase.messaging().getToken({ vapidKey: FB.vapidKey, serviceWorkerRegistration: reg });
+      if (!token) throw new Error('anahtar alınamadı');
+      store.set('pushToken', token);
+      await syncPush();
+      if (interactive) toast('🔔 Bildirimler açık: uygulama kapalıyken de haber verilir.');
+    } catch (e) { if (interactive) toast('Bildirim açılamadı: ' + (e.message || e), 7000); }
+  }
+  // Sunucuya: bu telefon hangi odaları (ve arkadaş kodunu) dinliyor
+  async function syncPush() {
+    const token = store.get('pushToken', ''); if (!token) return;
+    const rooms = [MY_CODE].concat((store.get('rooms', []) || []).map((r) => r.code)).slice(0, 30);
+    try { await api({ action: 'register', room: 'PUSH', identity: S.id, token, rooms }); } catch (e) {}
+  }
+  function offerPush() {
+    if (!pushReady()) return;
+    if (Notification.permission === 'granted') { enablePush(false); return; }
+    if (Notification.permission === 'denied') return;
+    if (Date.now() - (store.get('pushAsked', 0) || 0) < 2 * 86400000) return;
+    store.set('pushAsked', Date.now());
+    sheet('<h3>🔔 Bildirimleri aç</h3><p>Kayıtlı odalarına biri girince, seni odaya çağırınca, arayınca ya da S.O.S olunca uygulama kapalıyken de haber verelim.</p>' +
+      '<button class="mbtn amber" id="psOk">BİLDİRİMLERİ AÇ</button><button class="mbtn raised" id="psNo">Şimdi değil</button>', (b) => {
+      b.querySelector('#psNo').onclick = closeSheet;
+      b.querySelector('#psOk').onclick = () => { closeSheet(); enablePush(true); };
+    });
+  }
+  window.motolinkEnablePush = () => enablePush(true);
+  setInterval(syncPush, 6 * 3600000);
+
   // ------------------------------------------------------------ başlat
   renderHome(); renderRoom(); updateTop(); applyLocModeButtonsOnly();
   function applyLocModeButtonsOnly() {
@@ -1619,9 +1663,16 @@
   if (S.locMode !== 'off') startGeo();
   // Davet bağlantısı: ...?c=ODAKODU
   const qc = normCode(new URLSearchParams(location.search).get('c') || '');
+  // 1.1.8: bildirime dokununca ...?join=ODA ile açılır: kayıtlıysa doğrudan gir
+  const qj = normCode(new URLSearchParams(location.search).get('join') || '');
+  if (qj) { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
+  const savedJ = qj && (store.get('rooms', []) || []).find((r) => r.code === qj);
   if (!S.name) askName(qc ? () => askCode(qc) : null);
+  else if (savedJ) joinRoom(qj, savedJ.pw || '');
+  else if (validCode(qj)) askCode(qj);
   else if (validCode(qc)) askCode(qc);
   else offerRejoin();
+  setTimeout(offerPush, 2500);
   // Odadan "Odadan ayrıl" demeden çıkıldıysa: açılışta tek dokunuşla aynı odaya geri dön
   function offerRejoin() {
     const lr = store.get('lastRoom', null);
