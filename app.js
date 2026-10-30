@@ -362,7 +362,7 @@
     let shown = false;
     while (true) {
       try {
-        const a = await api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: pw, avatar: '', announce: false });
+        const a = await api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: pw, avatar: '', announce: false, known: !!(store.get('rooms', []) || []).find((r) => r.code === code) });
         if (shown) { closeSheet(); busy(true, 'Odaya bağlanıyor…'); }
         return a;
       } catch (e) {
@@ -800,7 +800,7 @@
       '<button class="mbtn raised" data-a="lock">' + (S.roomLock ? '🔓 Oda kilidini aç (herkes mod seçebilsin)' : '🔒 Odayı bas-konuşa kilitle') + '</button>' +
       '<button class="mbtn danger" data-a="silall">🔇 Herkesi sustur (sadece yöneticiler konuşsun)</button>' +
       ((S.silenced.size || S.lockedIds.size || S.roomLock) ? '<button class="mbtn raised" data-a="free">🔊 Herkesi serbest bırak</button>' : '') +
-      (S.id === S.owner && (S.locked || S.permanent) ? '<button class="mbtn raised" data-a="apr">' + (S.approval ? '🛡 Girişte onay: AÇIK (kapatmak için dokun)' : '🛡 Girişte yönetici onayı iste') + '</button>' : '') +
+      (amAdmin() && (S.locked || S.permanent) ? '<button class="mbtn raised" data-a="apr">' + (S.approval ? '🛡 Girişte onay: AÇIK (kapatmak için dokun)' : '🛡 Girişte yönetici onayı iste') + '</button>' : '') +
       '<p>Tek bir kişi için listede ismine dokun. Gizlilik gereği kimsenin mikrofonu uzaktan açılamaz.</p>' +
       '<button class="mbtn raised" data-a="x">Kapat</button>', (b) => {
       b.querySelectorAll('[data-a]').forEach((btn) => btn.onclick = () => {
@@ -844,8 +844,14 @@
   }
   async function setApproval(on) {
     try {
-      const j = await api({ action: 'create', room: S.code, identity: S.id, displayName: S.title, permanent: S.permanent, password: 'keep', approval: on });
-      S.approval = !!(j.room && j.room.approval);
+      // 1.1.8: yöneticiler de açıp kapatabilir (sunucu 0.9.45 "approval")
+      let j;
+      try { j = await api({ action: 'approval', room: S.code, identity: S.id, on: on }); S.approval = !!j.approval; }
+      catch (e1) {
+        if (S.id !== S.owner) throw e1;
+        j = await api({ action: 'create', room: S.code, identity: S.id, displayName: S.title, permanent: S.permanent, password: 'keep', approval: on });
+        S.approval = !!(j.room && j.room.approval);
+      }
       publish({ t: 'apr', on: S.approval });
       toast(S.approval ? '🛡 Girişte yönetici onayı açıldı.' : 'Girişte yönetici onayı kapatıldı.');
     } catch (e) { toast('Yapılamadı: ' + (e.message || 'sunucuya ulaşılamadı')); }
@@ -1366,7 +1372,9 @@
     if (evBusy || document.visibilityState !== 'visible') return;
     evBusy = true;
     try {
-      const j = await api({ action: 'events', room: 'PUSH', identity: S.id, rooms: [MY_CODE], since: evSince });
+      // 1.1.8: kayıtlı odalarımın olayları da (biri odaya girdi / herkesi çağırdı)
+      const myRooms = (store.get('rooms', []) || []).map((r) => r.code).slice(0, 25);
+      const j = await api({ action: 'events', room: 'PUSH', identity: S.id, rooms: [MY_CODE].concat(myRooms), since: evSince });
       const first = !evSince;
       evSince = j.now || Date.now();
       if (!first) (j.events || []).forEach(onDirectEvent);
@@ -1387,6 +1395,29 @@
         b.querySelector('#clNo').onclick = closeSheet;
         b.querySelector('#clOk').onclick = async () => { closeSheet(); if (S.room) await leaveRoom(true); joinRoom(ev.room, ''); };
       });
+    } else if (ev.type === 'join' && ev.room) {
+      // 1.1.8: kayıtlı odama biri girdi ya da herkesi odaya çağırdı
+      if (S.room && S.code === ev.room) return;
+      const saved = (store.get('rooms', []) || []).find((r) => r.code === ev.room);
+      if (!saved) return;
+      const rn = ev.title || saved.name || ev.room, who = ev.name || 'Bir sürücü';
+      const summon = ev.summon === '1';
+      const title = summon ? '📣 ' + who + ' seni odaya çağırıyor' : '🏍 ' + who + ' odaya girdi';
+      try { if (navigator.vibrate) navigator.vibrate(summon ? [300, 150, 300, 150, 300] : [200]); } catch (e) {}
+      try {
+        if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) {
+          navigator.serviceWorker.ready.then((reg) => reg.showNotification(title, { body: rn + ' · Katılmak için dokun', tag: 'join-' + ev.room, icon: 'img/icon-192.png' })).catch(() => {});
+        }
+      } catch (e) {}
+      const inOther = !!S.room;
+      sheet('<h3>' + esc(title) + '</h3><p>' + esc(rn) + (inOther ? ' · şu an başka odadasın' : '') + '</p>' +
+        '<button class="mbtn amber" id="jnOk">' + (inOther ? 'ODAYA GEÇ' : 'ODAYA GİR') + '</button>' +
+        (('Notification' in window && Notification.permission === 'default') ? '<button class="mbtn raised" id="jnPerm">🔔 Bildirimlere izin ver</button>' : '') +
+        '<button class="mbtn raised" id="jnNo">Kapat</button>', (b) => {
+        b.querySelector('#jnNo').onclick = closeSheet;
+        const pb = b.querySelector('#jnPerm'); if (pb) pb.onclick = () => { try { Notification.requestPermission(); } catch (e) {} };
+        b.querySelector('#jnOk').onclick = async () => { closeSheet(); if (S.room) await leaveRoom(true); joinRoom(ev.room, saved.pw || ''); };
+      });
     } else if (ev.type === 'friendreq') {
       noteCaller('👋 Seni arkadaş olarak ekledi');
       if (!f) toast('👋 ' + name + ' seni arkadaş olarak ekledi. Ana sayfadan sen de ekle.', 6000);
@@ -1399,7 +1430,8 @@
   }
   renderFriends();
   pollDirect();
-  setInterval(pollDirect, 20000);
+  setInterval(pollDirect, 15000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollDirect(); });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollDirect(); });
 
   // ------------------------------------------------------------ odada fotoğraf (Android 0.9.55 ile aynı)
