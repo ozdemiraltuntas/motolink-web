@@ -15,6 +15,8 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="lib/leaflet.css">
 <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wdth,wght@62.5..100,700..900&display=swap" rel="stylesheet">
 </head>
 <body>
 <div id="app">
@@ -28,8 +30,13 @@
   <main id="pages">
     <!-- 1 · ANA SAYFA -->
     <section id="p-home" class="page on">
-      <div class="hello">Merhaba,</div>
-      <h1 id="greet" class="greet">Sürücü, yola hazır mısın?</h1>
+      <!-- 1.2.0: Metal Konsol ekranı (üç renk: yeşil · retro zeytin · kırmızı) -->
+      <div class="bezel-lcd"><div id="homeLcd" class="lcdx">
+        <div class="lrow"><span id="lStatus">MOTOLINK · HAZIR</span><button id="lcdToggle" class="ltog" aria-label="Ekran rengi"><i class="g"></i><i class="o"></i><i class="r"></i></button><span id="lDate">—</span></div>
+        <h1 id="greet" class="greet">MERHABA</h1>
+        <div id="lRoom" class="lbox"><div class="tx"><small id="lRoomTag">SON ODA</small><b id="lRoomName">—</b></div><button id="lRoomGo" class="lkey">▶<small>GİR</small></button></div>
+        <div class="lrow foot"><span id="lFriends">0 ARKADAŞ</span><span id="lCode">KOD —</span><span id="lClock">--:--</span></div>
+      </div></div>
 
       <div id="installHint" class="hint raised hidden">
         <b>📲 Uygulama gibi kur:</b> Safari'de alttaki <b>Paylaş</b> (□↑) düğmesine dokun, sonra <b>Ana Ekrana Ekle</b>'yi seç.
@@ -40,6 +47,12 @@
         <button id="codeBtn" class="tile raised"><span class="ti green">⮕</span>Kodla<br>katıl<i class="screw s1"></i><i class="screw s2"></i></button>
       </div>
 
+      <!-- 1.2.0: kırmızı dijital sayaçlar -->
+      <div class="counters">
+        <button id="cFriends" class="ctr"><div class="cwin"><small>ARKADAŞ</small><span id="cFriendsN" class="seg"></span><small>KİŞİLERİM</small></div><b>ARKADAŞ</b></button>
+        <button id="cRooms" class="ctr"><div class="cwin"><small>ODALAR</small><span id="cRoomsN" class="seg"></span><small id="cRoomsSub">KAYITLI</small></div><b>ODALAR</b></button>
+      </div>
+
       <div class="label">SON ODALAR</div>
       <div id="recent" class="list"></div>
 
@@ -47,7 +60,7 @@
       <div class="fhead raised"><div class="tx"><small>Arkadaş kodum</small><b id="myCode">U…</b></div><button id="myCodeBtn" class="rbtn raised" aria-label="Kodumu göster">▦</button><button id="addFriendBtn" class="rbtn raised" aria-label="Arkadaş ekle">＋</button></div>
       <div id="friends" class="list"></div>
 
-      <div class="gift"><img src="img/tmp.png" alt="">Türkiye Motosiklet Platformu'nun motosiklet kullanıcılarına hediyesidir.</div>
+      <div class="gift2"><img src="img/tmp.png" alt="TMP"><p><b>MotoLink</b> uygulaması,<br><b>Türkiye Motosiklet Platformu</b> ve<br><b>Gönüllü Afet Müdahale Ekibi Derneği</b><br>üye ve gönüllülerinin emeği,<br>yol ve saha tecrübeleriyle geliştirildi.</p><img src="img/game.png" alt="GAME"></div>
       <div class="note">iPhone web sürümü · Sürüşte ekran açık kalmalı: ekran kilitlenirse ya da başka uygulamaya geçersen ses kesilir, geri dönünce kendiliğinden bağlanır.</div>
     </section>
 

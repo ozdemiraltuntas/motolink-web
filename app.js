@@ -173,16 +173,93 @@
   }
 
   // ------------------------------------------------------------ ana sayfa
+  // ------------------------------------------------------------ 1.2.0: Metal Konsol LCD (yeşil · retro zeytin · kırmızı)
+  const LCD_STYLES = ['', 'lcd-olive', 'lcd-red'];
+  function applyLcd() {
+    const st = +store.get('lcd', 0) || 0;
+    document.body.classList.remove('lcd-olive', 'lcd-red');
+    if (LCD_STYLES[st]) document.body.classList.add(LCD_STYLES[st]);
+  }
+  // 7 parçalı dijital rakam (eski kırmızı LED/LCD saatlerdeki gibi, hafif eğik)
+  function seg7(txt) {
+    const SEG = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg' };
+    const h = 100, w = 52, t = 13, gap = 16, sl = 0.10, m = h / 2, g = t * 0.12;
+    const sk = (x, y) => (x + (m - y) * sl).toFixed(1) + ',' + y.toFixed(1);
+    const hs = (x0, x1, y) => [sk(x0 + g, y), sk(x0 + t / 2 + g, y - t / 2), sk(x1 - t / 2 - g, y - t / 2), sk(x1 - g, y), sk(x1 - t / 2 - g, y + t / 2), sk(x0 + t / 2 + g, y + t / 2)].join(' ');
+    const vs = (x, y0, y1) => [sk(x, y0 + g), sk(x + t / 2, y0 + t / 2 + g), sk(x + t / 2, y1 - t / 2 - g), sk(x, y1 - g), sk(x - t / 2, y1 - t / 2 - g), sk(x - t / 2, y0 + t / 2 + g)].join(' ');
+    let out = '', cx = 6;
+    for (const ch of txt) {
+      const L = cx + t / 2, R = cx + w - t / 2, T = t / 2, B = h - t / 2;
+      const P = { a: hs(L, R, T), g: hs(L, R, m), d: hs(L, R, B), f: vs(L, T, m), b: vs(R, T, m), e: vs(L, m, B), c: vs(R, m, B) };
+      for (const k in P) {
+        const on = (SEG[ch] || '').includes(k);
+        out += '<polygon points="' + P[k] + '" fill="' + (on ? '#ff2a18' : '#3a0806') + '"' + (on ? ' filter="url(#gl)"' : '') + '/>';
+      }
+      cx += w + gap;
+    }
+    const W = cx + 6;
+    return '<svg viewBox="0 0 ' + W + ' ' + h + '" xmlns="http://www.w3.org/2000/svg"><defs><filter id="gl" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' + out + '</svg>';
+  }
+  const ROOM_COUNTS = {};
+  async function refreshCounts() {
+    const rooms = (store.get('rooms', []) || []).map((r) => r.code).slice(0, 40);
+    if (!rooms.length) return;
+    try {
+      const j = await api({ action: 'counts', room: rooms[0], identity: MY_CODE, rooms });
+      Object.assign(ROOM_COUNTS, j.counts || {});
+      renderHome();
+    } catch (e) {}
+  }
+  function renderLcd() {
+    const now = new Date();
+    const days = ['PAZ', 'PZT', 'SAL', 'ÇAR', 'PER', 'CUM', 'CMT'], mons = ['OCA', 'ŞUB', 'MAR', 'NIS', 'MAY', 'HAZ', 'TEM', 'AĞU', 'EYL', 'EKI', 'KAS', 'ARA'];
+    $('#lDate').textContent = now.getDate() + ' ' + mons[now.getMonth()] + ' ' + days[now.getDay()];
+    $('#lClock').textContent = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    $('#lStatus').textContent = S.room ? 'MOTOLINK · ODADA' : 'MOTOLINK · HAZIR';
+    $('#lFriends').textContent = friends().length + ' ARKADAŞ';
+    $('#lCode').textContent = 'KOD ' + prettyCode(MY_CODE);
+    const rs = store.get('rooms', []) || [];
+    const box = $('#lRoom');
+    if (S.room) {
+      $('#lRoomTag').textContent = 'ŞU AN ODADASIN';
+      $('#lRoomName').textContent = (($('#rTitle') && $('#rTitle').textContent) || S.code || '').toLocaleUpperCase('tr-TR');
+      $('#lRoomGo').innerHTML = '▶<small>ODAYA GİT</small>'; box.classList.remove('hidden');
+      $('#lRoomGo').onclick = () => go('room');
+    } else if (rs[0]) {
+      $('#lRoomTag').textContent = 'SON ODA';
+      $('#lRoomName').textContent = (rs[0].name || rs[0].code).toLocaleUpperCase('tr-TR');
+      $('#lRoomGo').innerHTML = '▶<small>GİR</small>'; box.classList.remove('hidden');
+      $('#lRoomGo').onclick = () => joinRoom(rs[0].code, rs[0].pw || '');
+    } else box.classList.add('hidden');
+    $('#cFriendsN').innerHTML = seg7(String(Math.min(99, friends().length)).padStart(2, '0'));
+    $('#cRoomsN').innerHTML = seg7(String(Math.min(99, rs.length)).padStart(2, '0'));
+    $('#cRoomsSub').textContent = S.room ? 'İÇERİDESİN' : 'KAYITLI';
+  }
+  $('#lcdToggle').onclick = (e) => { e.stopPropagation(); store.set('lcd', ((+store.get('lcd', 0) || 0) + 1) % 3); applyLcd(); };
+  $('#cRooms').onclick = () => go('room');
+  $('#cFriends').onclick = () => { const el = $('#friends'); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
+  applyLcd();
+  setInterval(() => { try { renderLcd(); } catch (e) {} }, 30000);
+  setInterval(() => { refreshCounts(); }, 30000);
+  setTimeout(refreshCounts, 2500);
+
   function renderHome() {
     const g = $('#greet');
-    g.textContent = (S.name || 'Sürücü') + ', yola hazır mısın?';
-    fit(g, 26, 14);
+    g.textContent = ('MERHABA ' + (S.name || 'SÜRÜCÜ')).toLocaleUpperCase('tr-TR');
+    try { renderLcd(); } catch (e) {}
     $('#installHint').classList.toggle('hidden', !(isIOS && !standalone));
     const rooms = store.get('rooms', []);
-    $('#recent').innerHTML = rooms.length ? rooms.map((r, i) =>
+    // 1.2.0: kişi olan odalar üstte (en kalabalık önce), boşlar alfabetik
+    const order = rooms.map((r, i) => i).sort((a, b) => {
+      const ca = ROOM_COUNTS[rooms[a].code] || 0, cb = ROOM_COUNTS[rooms[b].code] || 0;
+      if (ca !== cb) return cb - ca;
+      return String(rooms[a].name || rooms[a].code).localeCompare(String(rooms[b].name || rooms[b].code), 'tr');
+    });
+    $('#recent').innerHTML = rooms.length ? order.map((i) => { const r = rooms[i]; const n = ROOM_COUNTS[r.code] || 0; return (
       '<div class="row raised" data-i="' + i + '"><div class="av" style="background:' + colorOf(r.code) + '">' + esc(initial(r.name || r.code)) + '</div>' +
       '<div class="tx"><b>' + esc(r.name || r.code) + '</b><small>' + esc(r.code) + (r.locked ? ' · 🔒 şifreli' : '') + '</small></div>' +
-      '<button class="x" data-del="' + i + '" aria-label="Listeden kaldır">✕</button></div>').join('')
+      (n > 0 ? '<span class="cnt-on">● ' + n + ' kişi</span>' : '<span class="cnt-off">Boş</span>') +
+      '<button class="x" data-del="' + i + '" aria-label="Listeden kaldır">✕</button></div>'); }).join('')
       : '<div class="note" style="margin:0 2px">Girdiğin odalar burada listelenir.</div>';
     $$('#recent .row').forEach((el) => el.addEventListener('click', (e) => {
       const rs = store.get('rooms', []);
