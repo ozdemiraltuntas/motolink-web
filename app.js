@@ -166,7 +166,9 @@
   function go(p) {
     page = p;
     $$('.page').forEach((x) => x.classList.toggle('on', x.id === 'p-' + p));
-    $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === p));
+    $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === (p === 'rooms' || p === 'routes' ? 'home' : p)));
+    if (p === 'rooms') { renderHome(); refreshCounts(); }
+    if (p === 'routes') renderRoutes();
     if (p === 'map') setTimeout(initMap, 30);
     if (p === 'music') loadStations();
     if (p === 'room') renderRoom();
@@ -233,10 +235,13 @@
     } else box.classList.add('hidden');
     $('#cFriendsN').innerHTML = seg7(String(Math.min(99, friends().length)).padStart(2, '0'));
     $('#cRoomsN').innerHTML = seg7(String(Math.min(99, rs.length)).padStart(2, '0'));
+    try { $('#cRoutesN').innerHTML = seg7(String(Math.min(99, (store.get('routes', []) || []).length)).padStart(2, '0')); } catch (e) {}
     $('#cRoomsSub').textContent = S.room ? 'İÇERİDESİN' : 'KAYITLI';
   }
   $('#lcdToggle').onclick = (e) => { e.stopPropagation(); store.set('lcd', ((+store.get('lcd', 0) || 0) + 1) % 3); applyLcd(); };
-  $('#cRooms').onclick = () => go('room');
+  $('#cRooms').onclick = () => go('rooms');
+  $('#cRoutes').onclick = () => go('routes');
+  $$('[data-back]').forEach((b) => b.addEventListener('click', () => go('home')));
   $('#cFriends').onclick = () => { const el = $('#friends'); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
   applyLcd();
   setInterval(() => { try { renderLcd(); } catch (e) {} }, 30000);
@@ -257,7 +262,8 @@
     });
     $('#recent').innerHTML = rooms.length ? order.map((i) => { const r = rooms[i]; const n = ROOM_COUNTS[r.code] || 0; return (
       '<div class="row raised" data-i="' + i + '"><div class="av" style="background:' + colorOf(r.code) + '">' + esc(initial(r.name || r.code)) + '</div>' +
-      '<div class="tx"><b>' + esc(r.name || r.code) + '</b><small>' + esc(r.code) + (r.locked ? ' · 🔒 şifreli' : '') + '</small></div>' +
+      '<div class="tx"><b>' + esc(r.name || r.code) + '</b><small>' + esc(r.code) + (r.locked ? ' · 🔒 şifreli' : '') + '</small>' +
+      (S.room && S.code === r.code ? '<small class="rnames">● ' + esc(riders().map((x) => x.isMe ? 'Sen' : x.name).join(', ')) + '</small>' : '') + '</div>' +
       (n > 0 ? '<span class="cnt-on">● ' + n + ' kişi</span>' : '<span class="cnt-off">Boş</span>') +
       '<button class="x" data-del="' + i + '" aria-label="Listeden kaldır">✕</button></div>'); }).join('')
       : '<div class="note" style="margin:0 2px">Girdiğin odalar burada listelenir.</div>';
@@ -417,6 +423,8 @@
     S.open = false; S.live = false; S.micOn = false;
     S.wantRoom = { code, pw: usePw };
     rememberRoom(code, S.title, S.locked, usePw);
+    // 1.3.0: kayıtlı (kalıcı / şifreli) odaya girince odayı kaydeden diğerlerine bildirim (Android ile aynı)
+    if (S.locked || S.permanent) { api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: usePw, avatar: '', announce: true, known: true }).catch(() => {}); }
     store.set('lastRoom', { code, pw: usePw, title: S.title }); // uygulama kapanıp açılınca tek dokunuşla geri dönmek için
 
     // Mikrofonu bir kez aç (izin sorulur), sonra Bas-konuş'ta kapat: odaya giren herkes bas-konuşla başlar
@@ -1060,6 +1068,13 @@
     renderMapRiders();
   }
   $('#centerBtn').onclick = () => { if (S.myLoc && map) map.setView([S.myLoc.lat, S.myLoc.lon], Math.max(map.getZoom(), 15)); else toast('Konumun henüz bulunamadı.'); };
+  // 1.3.0: Herkes — odadaki herkes ekrana sığsın
+  function showEveryone(all) {
+    const pts = Object.values(all || S.locs).map((l) => [l.lat, l.lon]);
+    if (!pts.length) { toast('Konumunu paylaşan kimse yok.'); return; }
+    if (pts.length === 1) map.setView(pts[0], 15);
+    else map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 });
+  }
   function renderMapRiders() {
     $('#pings').classList.toggle('hidden', !S.room);
     const all = Object.assign({}, S.locs);
@@ -1076,12 +1091,82 @@
       if (!centered && S.myLoc) { centered = true; map.setView([S.myLoc.lat, S.myLoc.lon], 14); }
     }
     const me = all[S.id];
-    $('#mapRiders').innerHTML = Object.values(all).map((l) => {
+    const nAll = Object.keys(all).length;
+    $('#mapRiders').innerHTML = (nAll ? '<button class="chip all" data-all="1"><div class="av">👥</div><b>Herkes</b><small>' + nAll + ' kişi</small></button>' : '') + Object.values(all).map((l) => {
       const sub = l.id === S.id ? (l.spd > 3 ? l.spd + ' km/s' : 'sen') : (l.spd > 3 ? l.spd + ' km/s' : (me ? fmtDist(dist(me, l)) : ''));
       return '<button class="chip" data-id="' + esc(l.id) + '"><div class="av" style="background:' + colorOf(l.id) + '">' + esc(initial(l.name)) + '</div><b>' + esc(l.id === S.id ? 'Sen' : l.name) + '</b><small>' + esc(sub) + '</small></button>';
     }).join('') || '<div class="note" style="margin:4px 2px">' + (S.room ? 'Konumunu paylaşan kimse yok.' : 'Odaya girince arkadaşların burada görünür.') + '</div>';
-    $$('#mapRiders .chip').forEach((el) => el.addEventListener('click', () => { const l = all[el.dataset.id]; if (l && map) map.setView([l.lat, l.lon], Math.max(map.getZoom(), 15)); }));
+    $$('#mapRiders .chip').forEach((el) => el.addEventListener('click', () => {
+      if (!map) return;
+      if (el.dataset.all) { showEveryone(all); return; }
+      const l = all[el.dataset.id]; if (l) map.setView([l.lat, l.lon], Math.max(map.getZoom(), 15));
+    }));
     if (page === 'room') renderRoom();
+  }
+
+  // ------------------------------------------------------------ 1.3.0: Rotalar (sürüş kaydı, sadece bu telefonda)
+  const REC = { on: false, pts: [], t0: 0, watch: null, dist: 0, max: 0, tick: null };
+  function routesList() { return store.get('routes', []) || []; }
+  function fmtDur(ms) { const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' : '') + String(m).padStart(h ? 2 : 1, '0') + ':' + String(x).padStart(2, '0'); }
+  function recStats() {
+    const ms = REC.on ? Date.now() - REC.t0 : 0;
+    const km = REC.dist / 1000;
+    $('#recTag').textContent = REC.on ? '● KAYIT AÇIK' : 'KAYIT KAPALI';
+    $('#recMain').textContent = km.toFixed(1).replace('.', ',') + ' km';
+    $('#recSub').textContent = 'Süre ' + fmtDur(ms) + ' · Ort ' + (ms > 5000 ? Math.round(km / (ms / 3600000)) : 0) + ' km/s · En yüksek ' + Math.round(REC.max);
+    $('#recBtn').textContent = REC.on ? '■ Kaydı bitir ve kaydet' : '● Sürüş kaydını başlat';
+  }
+  function recStart() {
+    if (!navigator.geolocation) { toast('Bu tarayıcı konum desteklemiyor.'); return; }
+    Object.assign(REC, { on: true, pts: [], t0: Date.now(), dist: 0, max: 0 });
+    keepAwake(true);
+    REC.watch = navigator.geolocation.watchPosition((pos) => {
+      const c = pos.coords, p = { lat: c.latitude, lon: c.longitude, t: Date.now(), s: c.speed != null && c.speed >= 0 ? c.speed * 3.6 : 0 };
+      const last = REC.pts[REC.pts.length - 1];
+      if (last) { const d = dist(last, p); if (d < 12) return; REC.dist += d; }
+      REC.max = Math.max(REC.max, p.s); REC.pts.push(p); recStats();
+    }, (err) => { if (err.code === 1) { toast('Konum izni verilmedi.'); recStop(false); } }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+    REC.tick = setInterval(recStats, 1000); recStats();
+  }
+  function recStop(save) {
+    try { navigator.geolocation.clearWatch(REC.watch); } catch (e) {}
+    clearInterval(REC.tick); REC.on = false;
+    if (!S.room && !REC.keepAwakeKeep) keepAwake(false);
+    if (save && REC.pts.length >= 2) {
+      let pts = REC.pts; if (pts.length > 3000) { const k = Math.ceil(pts.length / 3000); pts = pts.filter((_, i) => i % k === 0); }
+      const ms = Date.now() - REC.t0;
+      const rs = routesList(); rs.unshift({ id: REC.t0, at: REC.t0, ms, km: REC.dist / 1000, max: REC.max, pts: pts.map((p) => [+p.lat.toFixed(5), +p.lon.toFixed(5), p.t]) });
+      store.set('routes', rs.slice(0, 20)); toast('✅ Rota kaydedildi: ' + (REC.dist / 1000).toFixed(1).replace('.', ',') + ' km');
+    } else if (save) toast('Kaydedilecek kadar yol alınmadı.');
+    recStats(); renderRoutes(); renderLcd();
+  }
+  $('#recBtn').onclick = () => { if (REC.on) recStop(true); else recStart(); };
+  let routeLayer = null;
+  function showRoute(r) {
+    go('map');
+    setTimeout(() => {
+      initMap(); if (routeLayer) map.removeLayer(routeLayer);
+      const ll = r.pts.map((p) => [p[0], p[1]]);
+      routeLayer = L.polyline(ll, { color: '#ff7a00', weight: 5, opacity: 0.9 }).addTo(map);
+      map.fitBounds(ll, { padding: [40, 40] }); $('#routeClear').classList.remove('hidden');
+    }, 80);
+  }
+  $('#routeClear').onclick = () => { if (routeLayer && map) map.removeLayer(routeLayer); routeLayer = null; $('#routeClear').classList.add('hidden'); };
+  function gpx(r) {
+    const x = '<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="MotoLink" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>MotoLink ' + new Date(r.at).toLocaleString('tr-TR') + '</name><trkseg>' +
+      r.pts.map((p) => '<trkpt lat="' + p[0] + '" lon="' + p[1] + '"><time>' + new Date(p[2]).toISOString() + '</time></trkpt>').join('') + '</trkseg></trk></gpx>';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([x], { type: 'application/gpx+xml' })); a.download = 'MotoLink-rota-' + r.id + '.gpx'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function renderRoutes() {
+    recStats();
+    const rs = routesList();
+    $('#routesList').innerHTML = rs.length ? rs.map((r, i) => '<div class="row raised rrow"><div class="tx"><b>' + esc(new Date(r.at).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) + '</b>' +
+      '<small>' + r.km.toFixed(1).replace('.', ',') + ' km · ' + fmtDur(r.ms) + ' · ort ' + Math.round(r.km / (r.ms / 3600000 || 1)) + ' · en yüksek ' + Math.round(r.max) + ' km/s</small>' +
+      '<div class="acts"><button data-show="' + i + '">🗺 Haritada</button><button data-gpx="' + i + '">⬇ GPX</button><button class="del" data-del="' + i + '">🗑</button></div></div></div>').join('')
+      : '<div class="note" style="margin:0 2px">Henüz kayıtlı rotan yok. Yukarıdan sürüş kaydını başlat.</div>';
+    $$('#routesList [data-show]').forEach((b) => b.onclick = () => showRoute(routesList()[+b.dataset.show]));
+    $$('#routesList [data-gpx]').forEach((b) => b.onclick = () => gpx(routesList()[+b.dataset.gpx]));
+    $$('#routesList [data-del]').forEach((b) => b.onclick = () => { const l = routesList(); l.splice(+b.dataset.del, 1); store.set('routes', l); renderRoutes(); renderLcd(); });
   }
 
   // ------------------------------------------------------------ hızlı uyarılar
@@ -1750,6 +1835,10 @@
   else if (validCode(qc)) askCode(qc);
   else offerRejoin();
   setTimeout(offerPush, 2500);
+  // 1.3.0: sunucu kaydı kaybolsa bile her açılışta / öne gelişte bildirim kaydı tazelensin
+  setTimeout(syncPush, 4000);
+  let lastPushSync = 0;
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - lastPushSync > 600000) { lastPushSync = Date.now(); syncPush(); } });
   // Odadan "Odadan ayrıl" demeden çıkıldıysa: açılışta tek dokunuşla aynı odaya geri dön
   function offerRejoin() {
     const lr = store.get('lastRoom', null);

@@ -51,10 +51,8 @@
       <div class="counters">
         <button id="cFriends" class="ctr"><div class="cwin"><small>ARKADAŞ</small><span id="cFriendsN" class="seg"></span><small>KİŞİLERİM</small></div><b>ARKADAŞ</b></button>
         <button id="cRooms" class="ctr"><div class="cwin"><small>ODALAR</small><span id="cRoomsN" class="seg"></span><small id="cRoomsSub">KAYITLI</small></div><b>ODALAR</b></button>
+        <button id="cRoutes" class="ctr"><div class="cwin"><small>ROTALAR</small><span id="cRoutesN" class="seg"></span><small>KAYITLI</small></div><b>ROTALAR</b></button>
       </div>
-
-      <div class="label">SON ODALAR</div>
-      <div id="recent" class="list"></div>
 
       <div class="label">ARKADAŞLARIM</div>
       <div class="fhead raised"><div class="tx"><small>Arkadaş kodum</small><b id="myCode">U…</b></div><button id="myCodeBtn" class="rbtn raised" aria-label="Kodumu göster">▦</button><button id="addFriendBtn" class="rbtn raised" aria-label="Arkadaş ekle">＋</button></div>
@@ -62,6 +60,24 @@
 
       <div class="gift2"><img src="img/tmp.png" alt="TMP"><p><b>MotoLink</b> uygulaması,<br><b>Türkiye Motosiklet Platformu</b> ve<br><b>Gönüllü Afet Müdahale Ekibi Derneği</b><br>üye ve gönüllülerinin emeği,<br>yol ve saha tecrübeleriyle geliştirildi.</p><img src="img/game.png" alt="GAME"></div>
       <div class="note">iPhone web sürümü · Sürüşte ekran açık kalmalı: ekran kilitlenirse ya da başka uygulamaya geçersen ses kesilir, geri dönünce kendiliğinden bağlanır.</div>
+    </section>
+
+    <!-- 1b · ODALAR (kayıtlı odalar; Ana sayfadaki ODALAR sayacından açılır) -->
+    <section id="p-rooms" class="page">
+      <div class="subhead"><button class="back raised" data-back>‹ Ana sayfa</button><h3>Odalar</h3></div>
+      <div id="recent" class="list"></div>
+    </section>
+
+    <!-- 1c · ROTALAR -->
+    <section id="p-routes" class="page">
+      <div class="subhead"><button class="back raised" data-back>‹ Ana sayfa</button><h3>Rotalar</h3></div>
+      <div class="sec raised">
+        <div class="lcdbox rec"><div class="g small" id="recTag">KAYIT KAPALI</div><div class="g title" id="recMain">0,0 km</div><div class="gd" id="recSub">Süre 00:00 · Ort 0 km/s · En yüksek 0</div></div>
+        <button id="recBtn" class="mbtn amber">● Sürüş kaydını başlat</button>
+        <div class="small">Kayıtlar sadece bu telefonda saklanır, kimseye gönderilmez. Kayıt sırasında ekran açık kalmalı.</div>
+      </div>
+      <div class="label">KAYITLI ROTALARIM</div>
+      <div id="routesList" class="list"></div>
     </section>
 
     <!-- 2 · ODA -->
@@ -121,6 +137,7 @@
       <div id="map"></div>
       <div class="maptools">
         <button id="centerBtn" class="tool amberk" aria-label="Konumum">◎</button>
+        <button id="routeClear" class="tool raised hidden" aria-label="Rotayı gizle">✕</button>
       </div>
       <div id="pings" class="pings hidden">
         <button data-ping="fuel" class="pg raised">⛽<small>Benzin</small></button>
