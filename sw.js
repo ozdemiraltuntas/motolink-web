@@ -1,8 +1,8 @@
 // MotoLink web: uygulama dosyalarını telefonda saklar (hızlı açılış). Sürüm değişince yenisi indirilir.
-const V = 'motolink-web-1.3.0';
+const V = 'motolink-web-1.3.2';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'config.js', 'manifest.webmanifest',
   'lib/livekit-client.umd.js', 'lib/leaflet.js', 'lib/leaflet.css', 'lib/qrcode.js',
-  'img/wordmark.png', 'img/nav_on.webp', 'img/nav_off.webp', 'img/game.png', 'img/tmp.png', 'img/icon-192.png', 'img/apple-touch-icon.png'];
+  'img/wordmark.png', 'img/nav_on.webp', 'img/tile_oda.webp', 'img/tile_kodla.webp', 'img/tray.webp', 'img/mode_up.webp', 'img/mode_down.webp', 'img/ptt.webp', 'img/nav_off.webp', 'img/game.png', 'img/tmp.png', 'img/icon-192.png', 'img/apple-touch-icon.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', (e) => {

@@ -11,6 +11,9 @@
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
+  // 1.3.1: sayfa her telefonda tam ekranı doldursun (iPhone'da alttaki siyah boşluk kalmasın)
+  function fitApp() { try { document.documentElement.style.setProperty('--appH', Math.max(window.innerHeight, (window.visualViewport && window.visualViewport.height) || 0) + 'px'); } catch (e) {} }
+  fitApp(); window.addEventListener('resize', fitApp); window.addEventListener('orientationchange', () => setTimeout(fitApp, 250)); setTimeout(fitApp, 400);
   // ------------------------------------------------------------ küçük kayıt (telefonda)
   const store = {
     get(k, d) { try { const v = localStorage.getItem('ml_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -166,9 +169,10 @@
   function go(p) {
     page = p;
     $$('.page').forEach((x) => x.classList.toggle('on', x.id === 'p-' + p));
-    $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === (p === 'rooms' || p === 'routes' ? 'home' : p)));
+    $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === (p === 'rooms' || p === 'routes' || p === 'friends' || p === 'plan' ? 'home' : p)));
     if (p === 'rooms') { renderHome(); refreshCounts(); }
     if (p === 'routes') renderRoutes();
+    if (p === 'plan') setTimeout(initPlanMap, 40);
     if (p === 'map') setTimeout(initMap, 30);
     if (p === 'music') loadStations();
     if (p === 'room') renderRoom();
@@ -203,12 +207,18 @@
     return '<svg viewBox="0 0 ' + W + ' ' + h + '" xmlns="http://www.w3.org/2000/svg"><defs><filter id="gl" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>' + out + '</svg>';
   }
   const ROOM_COUNTS = {};
+  const ROOM_NAMES = {};
   async function refreshCounts() {
     const rooms = (store.get('rooms', []) || []).map((r) => r.code).slice(0, 40);
     if (!rooms.length) return;
     try {
       const j = await api({ action: 'counts', room: rooms[0], identity: MY_CODE, rooms });
       Object.assign(ROOM_COUNTS, j.counts || {});
+      try {
+        const busy = Object.keys(j.counts || {}).filter((k) => j.counts[k] > 0);
+        Object.keys(ROOM_NAMES).forEach((k) => { if (!(ROOM_COUNTS[k] > 0)) delete ROOM_NAMES[k]; });
+        if (busy.length) { const m = await api({ action: 'members', room: busy[0], identity: MY_CODE, rooms: busy.slice(0, 20) }); Object.assign(ROOM_NAMES, m.members || {}); }
+      } catch (e) {}
       renderHome();
     } catch (e) {}
   }
@@ -235,14 +245,14 @@
     } else box.classList.add('hidden');
     $('#cFriendsN').innerHTML = seg7(String(Math.min(99, friends().length)).padStart(2, '0'));
     $('#cRoomsN').innerHTML = seg7(String(Math.min(99, rs.length)).padStart(2, '0'));
-    try { $('#cRoutesN').innerHTML = seg7(String(Math.min(99, (store.get('routes', []) || []).length)).padStart(2, '0')); } catch (e) {}
+    try { $('#cRoutesN').innerHTML = seg7(String(Math.min(99, ((store.get('routes', []) || []).length + plans().length))).padStart(2, '0')); } catch (e) {}
     $('#cRoomsSub').textContent = S.room ? 'İÇERİDESİN' : 'KAYITLI';
   }
   $('#lcdToggle').onclick = (e) => { e.stopPropagation(); store.set('lcd', ((+store.get('lcd', 0) || 0) + 1) % 3); applyLcd(); };
   $('#cRooms').onclick = () => go('rooms');
   $('#cRoutes').onclick = () => go('routes');
   $$('[data-back]').forEach((b) => b.addEventListener('click', () => go('home')));
-  $('#cFriends').onclick = () => { const el = $('#friends'); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
+  $('#cFriends').onclick = () => go('friends');
   applyLcd();
   setInterval(() => { try { renderLcd(); } catch (e) {} }, 30000);
   setInterval(() => { refreshCounts(); }, 30000);
@@ -263,15 +273,31 @@
     $('#recent').innerHTML = rooms.length ? order.map((i) => { const r = rooms[i]; const n = ROOM_COUNTS[r.code] || 0; return (
       '<div class="row raised" data-i="' + i + '"><div class="av" style="background:' + colorOf(r.code) + '">' + esc(initial(r.name || r.code)) + '</div>' +
       '<div class="tx"><b>' + esc(r.name || r.code) + '</b><small>' + esc(r.code) + (r.locked ? ' · 🔒 şifreli' : '') + '</small>' +
-      (S.room && S.code === r.code ? '<small class="rnames">● ' + esc(riders().map((x) => x.isMe ? 'Sen' : x.name).join(', ')) + '</small>' : '') + '</div>' +
+      memLine(r.code) + '</div>' +
       (n > 0 ? '<span class="cnt-on">● ' + n + ' kişi</span>' : '<span class="cnt-off">Boş</span>') +
       '<button class="x" data-del="' + i + '" aria-label="Listeden kaldır">✕</button></div>'); }).join('')
       : '<div class="note" style="margin:0 2px">Girdiğin odalar burada listelenir.</div>';
     $$('#recent .row').forEach((el) => el.addEventListener('click', (e) => {
       const rs = store.get('rooms', []);
+      const mem = e.target.closest && e.target.closest('[data-mem]'); if (mem) { showMembers(mem.dataset.mem); return; }
       if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); backupSoon(); setTimeout(() => { try { syncPush(); } catch (e) {} }, 500); renderHome(); return; }
       const r = rs[+el.dataset.i]; if (r) joinRoom(r.code, r.pw || '');
     }));
+  }
+  // 1.3.2: odadakiler satırı: ilk 3 isim + "+N kişi"; dokununca tam liste
+  function roomNames(code) {
+    if (S.room && S.code === code) return riders().map((x) => x.isMe ? 'Sen' : x.name);
+    return ROOM_NAMES[code] || [];
+  }
+  function memLine(code) {
+    const l = roomNames(code); if (!l.length) return '';
+    return '<small class="rnames tap" data-mem="' + esc(code) + '">● ' + esc(l.slice(0, 3).join(', ')) + (l.length > 3 ? ' +' + (l.length - 3) + ' kişi' : '') + ' ▸</small>';
+  }
+  function showMembers(code) {
+    const l = roomNames(code), rm = (store.get('rooms', []) || []).find((r) => r.code === code);
+    sheet('<h3>👥 ' + esc((rm && rm.name) || code) + '</h3><p>Odada şu an ' + l.length + ' kişi var</p>' +
+      '<div class="list">' + l.map((n) => '<div class="row raised"><div class="av" style="background:' + colorOf(n) + '">' + esc(initial(n)) + '</div><div class="tx"><b>' + esc(n) + '</b></div></div>').join('') + '</div>' +
+      '<button id="memOk" class="mbtn raised">Kapat</button>', (b) => { b.querySelector('#memOk').onclick = closeSheet; });
   }
   function rememberRoom(code, name, locked, pw) {
     const rs = store.get('rooms', []).filter((r) => r.code !== code);
@@ -586,6 +612,14 @@
     const id = participant && participant.identity;
     const name = nameOf(participant);
     switch (j.t) {
+      case 'route':
+        if (j.clear || !Array.isArray(j.stops) || !j.stops.length) break;
+        { const stops = j.stops.map((s) => ({ lat: +s.lat, lon: +s.lon, n: String(s.n || '') })).filter((s) => isFinite(s.lat) && isFinite(s.lon));
+          if (!stops.length) break; const nm = String(j.name || 'Paylaşılan rota').slice(0, 40);
+          sheet('<h3>🗺 ' + esc(name) + ' rota paylaştı</h3><p><b>' + esc(nm) + '</b> · ' + stops.length + ' durak</p><button id="rcOk" class="mbtn amber">Hazır rotalarıma ekle</button><button id="rcNo" class="mbtn raised">Kapat</button>', (b) => {
+            b.querySelector('#rcOk').onclick = () => { savePlan({ name: nm, stops }); closeSheet(); toast('✅ Rota eklendi: Ana sayfa > Rotalar'); };
+            b.querySelector('#rcNo').onclick = closeSheet; }); }
+        break;
       case 'mode': if (id) { S.modes[id] = j.m || 'ptt'; renderRoom(); } break;
       case 'loc':
         if (!id) return;
@@ -1158,7 +1192,7 @@
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([x], { type: 'application/gpx+xml' })); a.download = 'MotoLink-rota-' + r.id + '.gpx'; document.body.appendChild(a); a.click(); a.remove();
   }
   function renderRoutes() {
-    recStats();
+    recStats(); renderPlans();
     const rs = routesList();
     $('#routesList').innerHTML = rs.length ? rs.map((r, i) => '<div class="row raised rrow"><div class="tx"><b>' + esc(new Date(r.at).toLocaleString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })) + '</b>' +
       '<small>' + r.km.toFixed(1).replace('.', ',') + ' km · ' + fmtDur(r.ms) + ' · ort ' + Math.round(r.km / (r.ms / 3600000 || 1)) + ' · en yüksek ' + Math.round(r.max) + ' km/s</small>' +
@@ -1167,6 +1201,129 @@
     $$('#routesList [data-show]').forEach((b) => b.onclick = () => showRoute(routesList()[+b.dataset.show]));
     $$('#routesList [data-gpx]').forEach((b) => b.onclick = () => gpx(routesList()[+b.dataset.gpx]));
     $$('#routesList [data-del]').forEach((b) => b.onclick = () => { const l = routesList(); l.splice(+b.dataset.del, 1); store.set('routes', l); renderRoutes(); renderLcd(); });
+  }
+
+  // ------------------------------------------------------------ 1.3.2 · rota hazırlama (Android ile aynı biçim: MLR1 kodu, oda mesajı)
+  function plans() { return store.get('plans', []) || []; }
+  function savePlan(p) {
+    const l = plans().filter((x) => x.name !== p.name); l.unshift({ name: p.name, stops: p.stops });
+    store.set('plans', l.slice(0, 30)); renderRoutes(); renderLcd();
+  }
+  function planCode(p) {
+    const bytes = new TextEncoder().encode(JSON.stringify({ n: p.name.slice(0, 40), s: p.stops.map((s) => ({ lat: s.lat, lon: s.lon, n: s.n })) }));
+    let bin = ''; bytes.forEach((b) => { bin += String.fromCharCode(b); });
+    return 'MLR1:' + btoa(bin).replace(/\+/g, '-').replace(/\//g, '_');
+  }
+  function planFromText(t) {
+    const i = String(t).indexOf('MLR1:'); if (i < 0) return null;
+    const code = String(t).slice(i + 5).trim().split(/\s/)[0].replace(/-/g, '+').replace(/_/g, '/');
+    try {
+      const bin = atob(code), u = new Uint8Array(bin.length); for (let k = 0; k < bin.length; k++) u[k] = bin.charCodeAt(k);
+      const o = JSON.parse(new TextDecoder().decode(u));
+      const stops = (o.s || []).map((s) => ({ lat: +s.lat, lon: +s.lon, n: String(s.n || '') })).filter((s) => isFinite(s.lat) && isFinite(s.lon));
+      return stops.length ? { name: String(o.n || 'Paylaşılan rota'), stops } : null;
+    } catch (e) { return null; }
+  }
+  function planShareText(p) {
+    return '🏍 MotoLink rotası: ' + p.name + '\n' + p.stops.map((s, i) => (i + 1) + '. ' + s.n).join('\n') +
+      '\n\nMotoLink\'te açmak için bu mesajın tamamını kopyala, sonra Rotalar > "Rota kodu ekle".\n\n' + planCode(p);
+  }
+  async function shareText(text) {
+    try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); toast('📋 Kopyalandı, mesaja yapıştırabilirsin.'); } catch (e) { toast('Kopyalanamadı.'); }
+  }
+  let PLAN = { name: '', stops: [] }, planMap = null, planLayer = null, planPins = [], planTimer = null, planSeq = 0;
+  function openPlan(p) { PLAN = p ? { name: p.name, stops: p.stops.map((s) => ({ ...s })) } : { name: '', stops: [] }; go('plan'); }
+  function initPlanMap() {
+    if (!planMap) {
+      planMap = L.map('planMap', { zoomControl: true, attributionControl: false }).setView([39.0, 35.0], 6);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(planMap);
+      planMap.on('click', (e) => addStop(e.latlng.lat, e.latlng.lng, ''));
+    }
+    planMap.invalidateSize(); $('#planName').value = PLAN.name; $('#planRes').innerHTML = ''; $('#planQ').value = '';
+    renderPlan(true);
+  }
+  async function revName(lat, lon) {
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&accept-language=tr&lat=' + lat + '&lon=' + lon);
+      const j = await r.json(); const a = j.address || {};
+      return String(a.road || a.suburb || a.village || a.town || a.city || j.name || (j.display_name || '').split(',')[0] || '').slice(0, 40);
+    } catch (e) { return ''; }
+  }
+  function addStop(lat, lon, name) {
+    const s = { lat: +lat.toFixed(5), lon: +lon.toFixed(5), n: name || 'Durak ' + (PLAN.stops.length + 1) };
+    PLAN.stops.push(s); renderPlan(false);
+    if (!name) revName(s.lat, s.lon).then((n) => { if (n && PLAN.stops.includes(s)) { s.n = n; renderPlan(false, true); } });
+  }
+  function renderPlan(fit, noRoute) {
+    planPins.forEach((m) => planMap && planMap.removeLayer(m)); planPins = [];
+    $('#planStops').innerHTML = PLAN.stops.map((s, i) => '<div class="stp raised"><span class="n">' + (i + 1) + '</span><div class="tx"><b>' + esc(s.n) + '</b></div>' +
+      '<button data-up="' + i + '"' + (i ? '' : ' disabled') + '>↑</button><button data-dn="' + i + '"' + (i < PLAN.stops.length - 1 ? '' : ' disabled') + '>↓</button><button data-rm="' + i + '">✕</button></div>').join('');
+    $$('#planStops [data-up]').forEach((b) => b.onclick = () => { const i = +b.dataset.up; [PLAN.stops[i - 1], PLAN.stops[i]] = [PLAN.stops[i], PLAN.stops[i - 1]]; renderPlan(false); });
+    $$('#planStops [data-dn]').forEach((b) => b.onclick = () => { const i = +b.dataset.dn; [PLAN.stops[i + 1], PLAN.stops[i]] = [PLAN.stops[i], PLAN.stops[i + 1]]; renderPlan(false); });
+    $$('#planStops [data-rm]').forEach((b) => b.onclick = () => { PLAN.stops.splice(+b.dataset.rm, 1); renderPlan(false); });
+    if (planMap) {
+      PLAN.stops.forEach((s, i) => planPins.push(L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html: '<div class="pin">' + (i + 1) + '</div>', iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(planMap)));
+      if (fit && PLAN.stops.length) planMap.fitBounds(PLAN.stops.map((s) => [s.lat, s.lon]), { padding: [30, 30], maxZoom: 14 });
+    }
+    if (noRoute) return;
+    if (planLayer && planMap) { planMap.removeLayer(planLayer); planLayer = null; }
+    if (PLAN.stops.length < 2) { $('#planKm').textContent = PLAN.stops.length ? '1 durak' : 'Durak ekle'; $('#planSub').textContent = 'En az 2 durak gerekli'; return; }
+    $('#planKm').textContent = 'Hesaplanıyor…'; $('#planSub').textContent = '';
+    clearTimeout(planTimer); const my = ++planSeq;
+    planTimer = setTimeout(async () => {
+      try {
+        const q = PLAN.stops.map((s) => s.lon + ',' + s.lat).join(';');
+        const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + q + '?overview=full&geometries=geojson');
+        const j = await r.json(); if (my !== planSeq) return;
+        const rt = j.routes && j.routes[0]; if (!rt) throw new Error('yok');
+        planLayer = L.polyline(rt.geometry.coordinates.map((c) => [c[1], c[0]]), { color: '#ff7a00', weight: 5, opacity: 0.9 }).addTo(planMap);
+        $('#planKm').textContent = (rt.distance / 1000).toFixed(1).replace('.', ',') + ' km';
+        const m = Math.round(rt.duration / 60); $('#planSub').textContent = 'Yaklaşık ' + (m >= 60 ? Math.floor(m / 60) + ' sa ' + (m % 60) + ' dk' : m + ' dk') + ' · ' + PLAN.stops.length + ' durak';
+      } catch (e) { if (my === planSeq) { $('#planKm').textContent = '—'; $('#planSub').textContent = 'Yol hesaplanamadı (internet?)'; } }
+    }, 500);
+  }
+  async function planSearch() {
+    const q = $('#planQ').value.trim(); if (!q) return;
+    $('#planRes').innerHTML = '<div class="note">Aranıyor…</div>';
+    try {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=tr&accept-language=tr&q=' + encodeURIComponent(q));
+      const l = await r.json();
+      $('#planRes').innerHTML = l.length ? l.map((x, i) => '<div class="row raised" data-r="' + i + '"><div class="tx"><b>' + esc(String(x.name || x.display_name).split(',')[0]) + '</b><small>' + esc(String(x.display_name).slice(0, 80)) + '</small></div><span class="cnt-on">＋ Ekle</span></div>').join('') : '<div class="note">Bulunamadı.</div>';
+      $$('#planRes [data-r]').forEach((el) => el.onclick = () => { const x = l[+el.dataset.r]; addStop(+x.lat, +x.lon, String(x.name || x.display_name).split(',')[0].slice(0, 40)); $('#planRes').innerHTML = ''; $('#planQ').value = ''; planMap && planMap.setView([+x.lat, +x.lon], 12); });
+    } catch (e) { $('#planRes').innerHTML = '<div class="note">Arama yapılamadı (internet?).</div>'; }
+  }
+  $('#planGo').onclick = planSearch;
+  $('#planQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') planSearch(); });
+  $('#planBack').onclick = () => go('routes');
+  $('#planNew').onclick = () => openPlan(null);
+  $('#planLoc').onclick = () => {
+    if (!navigator.geolocation) { toast('Konum alınamıyor.'); return; }
+    navigator.geolocation.getCurrentPosition((p) => { addStop(p.coords.latitude, p.coords.longitude, 'Konumum'); planMap && planMap.setView([p.coords.latitude, p.coords.longitude], 13); }, () => toast('Konum izni verilmedi.'), { enableHighAccuracy: true, timeout: 10000 });
+  };
+  function planNow() { PLAN.name = $('#planName').value.trim() || ('Rota ' + new Date().toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })); return PLAN; }
+  $('#planSave').onclick = () => { if (!PLAN.stops.length) { toast('Önce durak ekle.'); return; } savePlan(planNow()); toast('✅ Rota kaydedildi'); go('routes'); };
+  $('#planSend').onclick = () => {
+    if (!S.room) { toast('Göndermek için önce odaya gir.'); return; }
+    if (!PLAN.stops.length) { toast('Önce durak ekle.'); return; }
+    const p = planNow(); savePlan(p); publish({ t: 'route', name: p.name, stops: p.stops }); toast('📡 Rota odadakilere gönderildi.');
+  };
+  $('#planShare').onclick = () => { if (!PLAN.stops.length) { toast('Önce durak ekle.'); return; } const p = planNow(); savePlan(p); shareText(planShareText(p)); };
+  $('#planImport').onclick = () => {
+    sheet('<h3>📋 Rota kodu ekle</h3><p>Arkadaşının gönderdiği MotoLink rota mesajını yapıştır.</p><textarea id="plTxt" class="input inset" style="height:120px;padding:10px" placeholder="MLR1:… kodu ya da mesajın tamamı"></textarea><button id="plOk" class="mbtn amber">Ekle</button><button id="plNo" class="mbtn raised">Vazgeç</button>', (b) => {
+      b.querySelector('#plNo').onclick = closeSheet;
+      b.querySelector('#plOk').onclick = () => { const p = planFromText(b.querySelector('#plTxt').value); if (!p) { toast('Mesajda geçerli rota kodu bulunamadı.'); return; } savePlan(p); closeSheet(); toast('✅ Rota eklendi: ' + p.name); };
+    });
+  };
+  function renderPlans() {
+    const l = plans();
+    $('#plansList').innerHTML = l.length ? l.map((p, i) => '<div class="row raised rrow"><div class="tx"><b>' + esc(p.name) + '</b><small>' + p.stops.length + ' durak · ' + esc(p.stops[0].n) + ' → ' + esc(p.stops[p.stops.length - 1].n) + '</small>' +
+      '<div class="acts"><button data-pe="' + i + '">🗺 Aç</button><button data-ps="' + i + '">📡 Odaya</button><button data-pc="' + i + '">📤</button><button class="del" data-pd="' + i + '">🗑</button></div></div></div>').join('')
+      : '<div class="note" style="margin:0 2px">Henüz hazır rotan yok. Yukarıdan yeni rota hazırla ya da arkadaşının kodunu ekle.</div>';
+    $$('#plansList [data-pe]').forEach((b) => b.onclick = () => openPlan(plans()[+b.dataset.pe]));
+    $$('#plansList [data-ps]').forEach((b) => b.onclick = () => { const p = plans()[+b.dataset.ps]; if (!S.room) { toast('Göndermek için önce odaya gir.'); return; } publish({ t: 'route', name: p.name, stops: p.stops }); toast('📡 Rota odadakilere gönderildi.'); });
+    $$('#plansList [data-pc]').forEach((b) => b.onclick = () => shareText(planShareText(plans()[+b.dataset.pc])));
+    $$('#plansList [data-pd]').forEach((b) => b.onclick = () => { const l2 = plans(); l2.splice(+b.dataset.pd, 1); store.set('plans', l2); renderRoutes(); renderLcd(); });
   }
 
   // ------------------------------------------------------------ hızlı uyarılar
@@ -1457,7 +1614,7 @@
   }
   function addFriendFromRoom(id, name) {
     const e = addFriend(name, friendCode(id));
-    toast(e || ('👤 ' + name + ' arkadaşlarına eklendi. Ana sayfadaki Arkadaşlarım\'dan arayabilirsin.'), 5000);
+    toast(e || ('👤 ' + name + ' arkadaşlarına eklendi. Ana sayfa > Arkadaş bölümünden arayabilirsin.'), 5000);
   }
   async function pairRoom(a, b) {
     const key = [a, b].sort().join('|');

@@ -5,12 +5,12 @@
   --green:#35d07f;--neon:#3cff8f;--red:#ff2d2d;--lcd:#7dffb0;
   --safeT:env(safe-area-inset-top,0px);--safeB:env(safe-area-inset-bottom,0px);
 }
-html,body{height:100%;background:#0a0b0c;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,Roboto,Arial,sans-serif;overscroll-behavior:none}
+html,body{height:100%;min-height:-webkit-fill-available;background:#18191c;color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Inter,Roboto,Arial,sans-serif;overscroll-behavior:none}
 body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 input{-webkit-user-select:text;user-select:text}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .hidden{display:none!important}
-#app{position:fixed;inset:0;display:flex;flex-direction:column;
+#app{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;height:var(--appH,100dvh);display:flex;flex-direction:column;
   background:radial-gradient(600px 300px at 50% -8%,rgba(255,255,255,.045),transparent 70%),
   repeating-linear-gradient(90deg,rgba(255,255,255,.012) 0 1px,transparent 1px 3px),
   linear-gradient(180deg,var(--bg1),var(--bg2) 45%,var(--bg3))}
@@ -305,3 +305,51 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 .rrow .acts button{flex:1;border:0;border-radius:10px;padding:8px 6px;font-size:12.5px;font-weight:800;color:#eceef2;background:linear-gradient(#55585d,#34363a 50%,#1e2023);box-shadow:0 3px 0 #0f1012}
 .rrow .acts .del{color:#ff8a8a}
 .rnames{display:block;font-size:11.5px;color:#a8ffc9;white-space:normal !important;margin-top:2px}
+
+/* 1.3.1: Android'deki gerçek metal tuş resimleri (Oda oluştur turuncu, Kodla katıl koyu yeşil) */
+.tile.oda,.tile.kod{height:auto;aspect-ratio:522/325;border:0;box-shadow:none;border-radius:0;padding:14px 16px 12px;background:transparent center/100% 100% no-repeat;font-size:19px;line-height:22px}
+.tile.oda{background-image:url(img/tile_oda.webp);color:#fff0dc}
+.tile.kod{background-image:url(img/tile_kodla.webp);color:#c4ecb0}
+.tile.oda .ti{color:#fff0dc}.tile.kod .ti{color:#9be58a}
+.tile.oda:active,.tile.kod:active{filter:brightness(.9);transform:translateY(2px)}
+
+/* ===== 1.3.1: alt çubuk iPhone'da tam otursun (siyah şerit yok) ===== */
+.nav{padding-bottom:calc(2px + max(0px, var(--safeB) - 16px));background:linear-gradient(180deg,#2a2b30,#1b1c1f)}
+.nav::after{content:"";position:absolute;left:0;right:0;top:100%;height:240px;background:#1b1c1f}
+
+/* ===== 1.3.1: Bas-konuş sayfası Android'deki metal tasarımda ===== */
+.panel.modes{display:block;position:relative;width:100%;aspect-ratio:1184/180;margin:10px 0 0;padding:0;border:0;border-radius:0;box-shadow:none;background:url(img/tray.webp) center/100% 100% no-repeat}
+.modes .sw{position:absolute;top:18.33%;height:64.45%;padding:0;border:0;border-radius:10px;display:flex;align-items:center;justify-content:center;
+ background:url(img/mode_up.webp) center/100% 100% no-repeat;color:#d9dce2;font-weight:800;font-size:12.5px;box-shadow:none;text-shadow:0 2px 2px #000;white-space:nowrap}
+.modes .sw:nth-child(1){left:7.43%;width:27.37%}
+.modes .sw:nth-child(2){left:36.74%;width:26.77%}
+.modes .sw:nth-child(3){left:65.45%;width:26.77%}
+.modes .sw.on{top:19.9%;background:url(img/mode_down.webp) center/100% 100% no-repeat;box-shadow:none}
+.modes .sw.on::before{content:"✓ "}
+.modes .sw.c-green.on{color:#35d07f;text-shadow:0 0 10px rgba(53,208,127,.9)}
+.modes .sw.c-orange.on{color:#ff9a2e;text-shadow:0 0 10px rgba(255,154,46,.9)}
+.modes .sw.c-red.on{color:#ff3b3b;text-shadow:0 0 10px rgba(255,59,59,.9)}
+.stage{height:auto;aspect-ratio:1224/750;display:block;position:relative;margin:6px 0 0;background:url(img/ptt.webp) 50% 0/83.66% 100% no-repeat}
+.stage .bezel{position:absolute;left:50%;top:50.1%;width:34.3%;height:auto;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:none;box-shadow:none;display:block}
+.stage .groove{width:100%;height:100%;background:none;box-shadow:none}
+.stage .groove.glow{box-shadow:0 0 0 3px var(--tc),0 0 calc(10px + var(--lv,0) * 30px) var(--tc)}
+.stage .groove.rxglow{box-shadow:0 0 0 3px var(--tc),0 0 calc(14px + var(--rx,0) * 34px) var(--tc)}
+.stage .knobbig{width:100%;height:100%;gap:1px;background:radial-gradient(circle at 50% 30%,#2b2d31,#141517 60%,#0b0b0c);border:0;
+ box-shadow:inset 0 2px 2px rgba(255,255,255,.12),inset 0 -6px 12px rgba(0,0,0,.7)}
+.stage .knobbig .mi{font-size:26px}
+.stage .knobbig b{font-size:13.5px}
+.stage .knobbig #pttHint{font-size:10.5px;max-width:92%}
+.stage .knobbig.on{background:radial-gradient(circle at 50% 28%,#7cf5ad,#2fbf6c 55%,#1a7f45)}
+.stage .knobbig.live.on{background:radial-gradient(circle at 50% 28%,#ff8a8a,#ff3b3b 55%,#a3101b)}
+
+/* 1.3.2: rota hazırlama + oda üyeleri */
+.searchrow{display:flex;gap:8px;align-items:flex-start}
+.searchrow .input{flex:1;margin-bottom:0}
+#planMap{height:270px;border-radius:16px;overflow:hidden;margin-top:10px;background:#d8d3c6;box-shadow:0 0 0 2px #2c2d32,0 0 0 3px #0f1012}
+.rnames{text-decoration:none}
+.rnames.tap{color:#a8ffc9;cursor:pointer}
+.stp{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:14px}
+.stp .n{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-weight:900;font-size:13px;color:#2a1100;background:#ffa14a}
+.stp .tx{flex:1;min-width:0}.stp .tx b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stp button{flex:none;width:34px;height:34px;border-radius:10px;background:linear-gradient(#55585d,#34363a);color:#eceef2;font-weight:900}
+.pin{width:26px;height:26px;border-radius:50%;background:#ff7a00;color:#fff;font-weight:900;font-size:13px;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}

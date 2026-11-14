@@ -43,8 +43,8 @@
       </div>
 
       <div class="tiles">
-        <button id="createBtn" class="tile amber"><span class="ti">＋</span>Oda<br>oluştur</button>
-        <button id="codeBtn" class="tile raised"><span class="ti green">⮕</span>Kodla<br>katıl<i class="screw s1"></i><i class="screw s2"></i></button>
+        <button id="createBtn" class="tile oda"><span class="ti">＋</span>Oda<br>oluştur</button>
+        <button id="codeBtn" class="tile kod"><span class="ti">⮕</span>Kodla<br>katıl</button>
       </div>
 
       <!-- 1.2.0: kırmızı dijital sayaçlar -->
@@ -54,12 +54,16 @@
         <button id="cRoutes" class="ctr"><div class="cwin"><small>ROTALAR</small><span id="cRoutesN" class="seg"></span><small>KAYITLI</small></div><b>ROTALAR</b></button>
       </div>
 
-      <div class="label">ARKADAŞLARIM</div>
-      <div class="fhead raised"><div class="tx"><small>Arkadaş kodum</small><b id="myCode">U…</b></div><button id="myCodeBtn" class="rbtn raised" aria-label="Kodumu göster">▦</button><button id="addFriendBtn" class="rbtn raised" aria-label="Arkadaş ekle">＋</button></div>
-      <div id="friends" class="list"></div>
 
       <div class="gift2"><img src="img/tmp.png" alt="TMP"><p><b>MotoLink</b> uygulaması,<br><b>Türkiye Motosiklet Platformu</b> ve<br><b>Gönüllü Afet Müdahale Ekibi Derneği</b><br>üye ve gönüllülerinin emeği,<br>yol ve saha tecrübeleriyle geliştirildi.</p><img src="img/game.png" alt="GAME"></div>
       <div class="note">iPhone web sürümü · Sürüşte ekran açık kalmalı: ekran kilitlenirse ya da başka uygulamaya geçersen ses kesilir, geri dönünce kendiliğinden bağlanır.</div>
+    </section>
+
+    <!-- 1a · ARKADAŞLAR (Ana sayfadaki ARKADAŞ sayacından açılır) -->
+    <section id="p-friends" class="page">
+      <div class="subhead"><button class="back raised" data-back>‹ Ana sayfa</button><h3>Arkadaşlarım</h3></div>
+      <div class="fhead raised"><div class="tx"><small>Arkadaş kodum</small><b id="myCode">U…</b></div><button id="myCodeBtn" class="rbtn raised" aria-label="Kodumu göster">▦</button><button id="addFriendBtn" class="rbtn raised" aria-label="Arkadaş ekle">＋</button></div>
+      <div id="friends" class="list"></div>
     </section>
 
     <!-- 1b · ODALAR (kayıtlı odalar; Ana sayfadaki ODALAR sayacından açılır) -->
@@ -76,8 +80,30 @@
         <button id="recBtn" class="mbtn amber">● Sürüş kaydını başlat</button>
         <div class="small">Kayıtlar sadece bu telefonda saklanır, kimseye gönderilmez. Kayıt sırasında ekran açık kalmalı.</div>
       </div>
-      <div class="label">KAYITLI ROTALARIM</div>
+      <div class="label">HAZIR ROTALARIM</div>
+      <div class="sec raised">
+        <button id="planNew" class="mbtn amber">＋ Yeni rota hazırla</button>
+        <button id="planImport" class="mbtn raised">📋 Rota kodu ekle</button>
+      </div>
+      <div id="plansList" class="list"></div>
+      <div class="label">SÜRÜŞ KAYITLARIM</div>
       <div id="routesList" class="list"></div>
+    </section>
+
+    <!-- 1d · ROTA HAZIRLA -->
+    <section id="p-plan" class="page">
+      <div class="subhead"><button class="back raised" id="planBack">‹ Rotalar</button><h3>Rota hazırla</h3></div>
+      <input id="planName" class="input inset" maxlength="40" placeholder="Rota adı (ör. Abant hafta sonu)">
+      <div class="searchrow"><input id="planQ" class="input inset" placeholder="Yer ara: şehir, adres, mekan"><button id="planGo" class="rbtn raised" aria-label="Ara">🔍</button></div>
+      <div id="planRes" class="list"></div>
+      <div id="planMap"></div>
+      <div class="small" style="margin:6px 2px">Haritaya dokunarak da durak ekleyebilirsin. Duraklar yazılma sırasıyla gidilir.</div>
+      <div class="lcdbox rec"><div class="g small" id="planTag">ROTA</div><div class="g title" id="planKm">Durak ekle</div><div class="gd" id="planSub">En az 2 durak gerekli</div></div>
+      <div id="planStops" class="list"></div>
+      <button id="planLoc" class="mbtn raised">📍 Konumumu durak olarak ekle</button>
+      <button id="planSave" class="mbtn amber">💾 Kaydet</button>
+      <button id="planSend" class="mbtn raised">📡 Odadakilere gönder</button>
+      <button id="planShare" class="mbtn raised">📤 Rota kodunu paylaş</button>
     </section>
 
     <!-- 2 · ODA -->
