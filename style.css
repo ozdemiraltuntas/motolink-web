@@ -384,3 +384,12 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 /* ===== 1.3.4: üstteki turuncu "‹ Ana sayfa" tuşları: S.O.S gibi gri metal çerçeve + derinlik ===== */
 .back{box-shadow:0 0 0 3px #17181b,0 0 0 5px #4b4d53,0 0 0 6px #000,0 3px 0 6px #08080a,0 9px 10px 4px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45);margin:6px 8px 8px 6px}
 .back:active{transform:translateY(2px);box-shadow:0 0 0 3px #17181b,0 0 0 5px #4b4d53,0 0 0 6px #000,0 1px 0 6px #08080a,0 5px 8px 4px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}
+
+/* ===== 1.3.5: üst çubuk: S.O.S ve Odaya katıl / Odadan ayrıl = Android'deki gerçek metal tuş resimleri ===== */
+.sos{width:88px;height:50px;border:0;border-radius:0;background:url(img/sos.webp) center/100% 100% no-repeat;box-shadow:none;font-size:0;color:transparent;text-shadow:none;letter-spacing:0}
+.sos:active{filter:brightness(.88);transform:translateX(-50%) translateY(2px)}
+.join{min-width:0;width:126px;height:54px;padding:0 14px 2px;border:0;border-radius:0;background:url(img/leave.webp) center/100% 100% no-repeat;box-shadow:none;
+ color:#3be083;text-shadow:0 0 8px rgba(59,224,131,.75),0 2px 2px #000;font-size:11.5px;top:50%;margin-top:-27px}
+.join.red{background:url(img/leave.webp) center/100% 100% no-repeat;box-shadow:none;border:0;color:#e9eaee;text-shadow:0 2px 2px #000;animation:breathe3 1.8s ease-in-out infinite}
+.join:active{filter:brightness(.88);transform:translateY(2px)}
+@keyframes breathe3{0%,100%{filter:drop-shadow(0 0 0 rgba(255,40,40,0))}50%{filter:drop-shadow(0 0 9px rgba(255,40,40,.85))}}
