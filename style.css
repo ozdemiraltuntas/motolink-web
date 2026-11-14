@@ -353,3 +353,34 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 .stp .tx{flex:1;min-width:0}.stp .tx b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stp button{flex:none;width:34px;height:34px;border-radius:10px;background:linear-gradient(#55585d,#34363a);color:#eceef2;font-weight:900}
 .pin{width:26px;height:26px;border-radius:50%;background:#ff7a00;color:#fff;font-weight:900;font-size:13px;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+
+/* ===== 1.3.3: Bas-konuş topuzu: renk DIŞARI şişmez, topuzun İÇ kenarından yanar ===== */
+.stage .groove.glow,.stage .groove.rxglow{box-shadow:none}
+.stage .knobbig.on,.stage .knobbig.live.on{background:radial-gradient(circle at 50% 30%,#2b2d31,#141517 60%,#0b0b0c);color:var(--tc,#46e38a);
+ box-shadow:inset 0 0 0 3px var(--tc,#46e38a),inset 0 0 calc(14px + var(--lv,0) * 34px) var(--tc,#46e38a)}
+.stage .knobbig.on b,.stage .knobbig.live.on b{color:var(--tc,#46e38a);text-shadow:0 0 8px var(--tc,#46e38a)}
+.stage .knobbig.on #pttHint,.stage .knobbig.live.on #pttHint{color:#cfd3da}
+.stage .knobbig.rx:not(.on){box-shadow:inset 0 0 0 3px var(--tc,#46e38a),inset 0 0 calc(14px + var(--rx,0) * 34px) var(--tc,#46e38a)}
+.stage .knobbig:active,.modes .sw:active{transform:none!important;filter:none!important}
+
+/* ===== 1.3.3: oda sayfası: üst kısım SABİT, sadece sürücü listesi kayar; dijital ekran ===== */
+#p-room{overflow:hidden}
+#roomBody:not(.hidden){display:flex;flex-direction:column;height:100%}
+.rscroll{flex:1;min-height:70px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:8px;margin-top:2px}
+.rscroll .label{margin-top:10px}
+.rlcd{margin:8px 0 0;padding:7px;border-radius:18px}
+.rlcd .lcdx{min-height:0;max-height:none;padding:7px 12px;gap:3px;justify-content:flex-start;border-radius:12px}
+.rlcd .lcdx .greet{font-size:clamp(18px,6vw,26px)}
+.rlcd .lcdx .lrow{font-size:11.5px}.rlcd .lcdx .lrow.foot{padding-top:3px;margin-top:2px;font-size:11px}
+.tkl{font-size:12.5px;opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;position:relative;z-index:1}
+.tkl.on{opacity:1;font-weight:900}
+@media (max-height:760px){.stage{width:76%;margin-left:auto;margin-right:auto}.rlcd .lcdx .greet{font-size:clamp(16px,5vw,22px)}}
+
+/* ===== 1.3.4: topuz kesin DAİRE (iPhone Safari'de yüzde yükseklik bozuluyordu): çap piksel olarak verilir ===== */
+.stage{--kd:calc((100vw - 32px) * .343)}
+.stage .bezel{width:var(--kd);height:var(--kd);aspect-ratio:auto;flex:none}
+.stage .groove{width:var(--kd);height:var(--kd);aspect-ratio:1/1;flex:none}
+.stage .knobbig{width:var(--kd);height:var(--kd);aspect-ratio:1/1;flex:none;border-radius:50%;-webkit-appearance:none;appearance:none;padding:0;overflow:hidden}
+/* ===== 1.3.4: üstteki turuncu "‹ Ana sayfa" tuşları: S.O.S gibi gri metal çerçeve + derinlik ===== */
+.back{box-shadow:0 0 0 3px #17181b,0 0 0 5px #4b4d53,0 0 0 6px #000,0 3px 0 6px #08080a,0 9px 10px 4px rgba(0,0,0,.55),inset 0 1px 0 rgba(255,255,255,.45);margin:6px 8px 8px 6px}
+.back:active{transform:translateY(2px);box-shadow:0 0 0 3px #17181b,0 0 0 5px #4b4d53,0 0 0 6px #000,0 1px 0 6px #08080a,0 5px 8px 4px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3)}

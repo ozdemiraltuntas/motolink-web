@@ -13,6 +13,11 @@
 
   // 1.3.1: sayfa her telefonda tam ekranı doldursun (iPhone'da alttaki siyah boşluk kalmasın)
   function fitApp() { try { document.documentElement.style.setProperty('--appH', Math.max(window.innerHeight, (window.visualViewport && window.visualViewport.height) || 0) + 'px'); } catch (e) {} }
+  // 1.3.4: Bas-konuş topuzunun çapı = sahne genişliğinin %34,3'ü (piksel), böylece her telefonda tam daire olur
+  function fitKnob() { try { const st = document.querySelector('.stage'); if (!st) return; const w = st.clientWidth || (window.innerWidth - 32); st.style.setProperty('--kd', Math.round(w * 0.343) + 'px'); } catch (e) {} }
+  window.addEventListener('resize', () => { fitKnob(); setTimeout(fitKnob, 150); }); window.addEventListener('orientationchange', () => setTimeout(fitKnob, 300));
+  if (window.ResizeObserver) { try { new ResizeObserver(fitKnob).observe(document.querySelector('.stage')); } catch (e) {} }
+  setTimeout(fitKnob, 300); setInterval(fitKnob, 4000);
   fitApp(); window.addEventListener('resize', fitApp); window.addEventListener('orientationchange', () => setTimeout(fitApp, 250)); setTimeout(fitApp, 400);
   // ------------------------------------------------------------ küçük kayıt (telefonda)
   const store = {
@@ -254,7 +259,7 @@
   $$('[data-back]').forEach((b) => b.addEventListener('click', () => go('home')));
   $('#cFriends').onclick = () => go('friends');
   applyLcd();
-  setInterval(() => { try { renderLcd(); } catch (e) {} }, 30000);
+  setInterval(() => { try { renderLcd(); if (page === 'room' && S.room) renderRoom(); } catch (e) {} }, 30000);
   setInterval(() => { refreshCounts(); }, 30000);
   setTimeout(refreshCounts, 2500);
 
@@ -813,6 +818,13 @@
     const list = riders();
     $('#rLogo').textContent = initial(S.title);
     $('#rTitle').textContent = S.title;
+    try {
+      $('#rlName').textContent = String(S.title || S.code || '').toLocaleUpperCase('tr-TR');
+      $('#rlCount').textContent = list.length + ' SÜRÜCÜ' + (S.permanent ? ' · KALICI' : '');
+      $('#rlMode').textContent = { ptt: 'BAS-KONUŞ', open: 'ELLER SERBEST', live: 'SÜREKLİ AÇIK' }[currentMode()];
+      $('#rlStatus').textContent = (S.locked ? '🔒 ' : '') + 'ODADASIN · ' + S.code;
+      const n = new Date(); $('#rlClock').textContent = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0');
+    } catch (e) {}
     $('#rSub').textContent = list.length + ' / ' + CFG.MAX_RIDERS + ' sürücü' + (S.permanent ? ' · kalıcı oda' : '') + (S.title !== S.code ? ' · ' + S.code : '') + (S.locked ? ' · 🔒' : '');
     $('#adminBtn').classList.toggle('hidden', !amAdmin());
     const cls = { ptt: 'c-green', open: 'c-orange', live: 'c-red' };
