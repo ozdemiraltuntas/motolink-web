@@ -416,3 +416,13 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 .cform{display:flex;gap:8px;align-items:center}
 .cform .input{flex:1;min-width:0}
 .csend{flex:none;border-radius:12px;padding:14px;font-weight:800;font-size:13px;color:#ffb04a}
+
+/* 1.3.7: her sayfada üstte çıkan dikkat çekici mesaj şeridi */
+.cbanner{position:fixed;left:10px;right:10px;top:calc(8px + var(--safeT, env(safe-area-inset-top)));z-index:1500;display:flex;align-items:center;gap:10px;border-radius:16px;padding:10px 14px;cursor:pointer;
+  background:linear-gradient(#FFB04A,#F2761C 55%,#D2560A);border:2px solid #FFE2B8;box-shadow:0 8px 24px rgba(0,0,0,.55);animation:cbin .25s ease-out}
+.cbanner.hidden{display:none}
+.cbi{font-size:26px}.cbt{flex:1;min-width:0;display:flex;flex-direction:column}
+.cbt b{color:#2A1100;font-weight:900;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cbt span{color:#fff;font-weight:700;font-size:15px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cbg{color:#2A1100;font-weight:900;font-size:30px;line-height:1}
+@keyframes cbin{from{transform:translateY(-120%);opacity:0}to{transform:none;opacity:1}}

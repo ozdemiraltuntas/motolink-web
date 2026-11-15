@@ -261,11 +261,12 @@
   <div id="chatMsgs" class="cmsgs"></div>
   <div id="chatQuick" class="cquick"></div>
   <div id="chatLock" class="clock hidden">🏍 Sürüşte yazı kapalı: sadece hazır mesajlar</div>
-  <form id="chatForm" class="cform" autocomplete="off"><input id="chatIn" class="input inset" maxlength="200" placeholder="Mesaj yaz…"><button class="csend raised" type="submit">GÖNDER</button></form>
+  <form id="chatForm" class="cform" autocomplete="off"><input id="chatIn" enterkeyhint="send" class="input inset" maxlength="200" placeholder="Mesaj yaz…"><button class="csend raised" type="submit">GÖNDER</button></form>
 </div>
 <div id="sheet" class="sheetwrap hidden"><div class="sheetbox raised" id="sheetBox"></div></div>
 <div id="sosAlert" class="sosalert hidden"></div>
 <div id="toast" class="toast hidden"></div>
+<div id="chatBanner" class="cbanner hidden"><span class="cbi" id="cbIcon">💬</span><div class="cbt"><b id="cbName"></b><span id="cbText"></span></div><span class="cbg">›</span></div>
 <div id="pcard" class="pcard hidden"></div>
 <div id="busy" class="busy hidden"><div class="spin"></div><span id="busyText">Bağlanıyor…</span></div>
 

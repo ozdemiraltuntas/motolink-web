@@ -685,7 +685,7 @@
   }
   function chOpen(to) { if (!S.room) return; CH.to = to || null; CH.open = true; $('#chat').classList.remove('hidden'); chMarkRead(); chRender(); }
   function chClose() { CH.open = false; $('#chat').classList.add('hidden'); }
-  function chClear() { CH.msgs = []; CH.unreadAll = 0; CH.unreadPriv = {}; CH.seen.clear(); CH.to = null; chClose(); chBadge(); }
+  function chClear() { try { $('#chatBanner').classList.add('hidden'); } catch (e) {} CH.msgs = []; CH.unreadAll = 0; CH.unreadPriv = {}; CH.seen.clear(); CH.to = null; chClose(); chBadge(); }
   function chSend(text) {
     const x = String(text || '').trim().slice(0, 200); if (!x || !S.room) return false;
     const now = Date.now(); if (now - CH.last < 400) return false; CH.last = now;
@@ -695,6 +695,25 @@
     CH.msgs.push({ id: i, from: S.id, name: 'Sen', x, at: now, me: true, to: CH.to || null });
     if (CH.msgs.length > 200) CH.msgs.shift();
     chRender(); return true;
+  }
+  // 1.3.7: yeni mesaj şeridi (her sayfada), bip + titreşim, 6 sn sonra kapanır, dokununca sohbete gider
+  let cbT = null, bAx = null;
+  function chBeep() {
+    try {
+      bAx = bAx || new (window.AudioContext || window.webkitAudioContext)();
+      const o = bAx.createOscillator(), g = bAx.createGain(); o.type = 'sine'; o.frequency.value = 880;
+      g.gain.value = 0.12; o.connect(g); g.connect(bAx.destination); o.start(); o.stop(bAx.currentTime + 0.18);
+    } catch (e) {}
+  }
+  function chBanner(from, name, x, priv) {
+    const b = $('#chatBanner'); if (!b) return;
+    $('#cbIcon').textContent = priv ? '🔒' : '💬';
+    $('#cbName').textContent = name + (priv ? ' · ÖZEL MESAJ' : ' · ODA');
+    $('#cbText').textContent = x;
+    b.onclick = () => { b.classList.add('hidden'); chOpen(priv ? from : null); };
+    b.classList.remove('hidden');
+    chBeep(); try { navigator.vibrate && navigator.vibrate([90, 70, 90]); } catch (e) {}
+    clearTimeout(cbT); cbT = setTimeout(() => b.classList.add('hidden'), 6000);
   }
   function onChat(j, from, name) {
     const to = j.to ? String(j.to) : null;
@@ -707,7 +726,7 @@
     const viewing = CH.open && CH.to === (to ? from : null);
     if (!viewing) {
       if (!to) CH.unreadAll++; else CH.unreadPriv[from] = (CH.unreadPriv[from] || 0) + 1;
-      if (to) toast('✉ ' + name + ': ' + x);
+      chBanner(from, name, x, !!to);
       chBadge();
     }
     chRender();
