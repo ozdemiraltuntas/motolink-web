@@ -393,3 +393,26 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 .join.red{background:url(img/leave.webp) center/100% 100% no-repeat;box-shadow:none;border:0;color:#e9eaee;text-shadow:0 2px 2px #000;animation:breathe3 1.8s ease-in-out infinite}
 .join:active{filter:brightness(.88);transform:translateY(2px)}
 @keyframes breathe3{0%,100%{filter:drop-shadow(0 0 0 rgba(255,40,40,0))}50%{filter:drop-shadow(0 0 9px rgba(255,40,40,.85))}}
+
+/* ===== 1.3.6: oda sohbeti (Android 0.9.99 ile aynı paket) ===== */
+#chatBtn{position:relative}
+.cbadge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#e8550b;color:#fff;font:900 11px/18px inherit;font-style:normal;text-align:center}
+.chatwrap{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;height:var(--appH,100dvh);z-index:900;display:flex;flex-direction:column;gap:8px;padding:calc(10px + var(--safeT)) 10px calc(10px + var(--safeB));background:linear-gradient(180deg,var(--bg1),var(--bg2) 45%,var(--bg3))}
+.chead{display:flex;align-items:center;gap:10px}
+.chead h3{flex:1;min-width:0;font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cback{flex:none;border-radius:14px;padding:10px 14px;font-weight:800;font-size:15px;color:#2a1100;background:linear-gradient(#ffa14a,#f2761c 55%,#d2560a);border:1px solid #7a2e02}
+.cpriv{display:flex;gap:6px}
+.cpriv button{flex:1;min-width:0;border-radius:12px;padding:7px 10px;font-weight:700;font-size:13px;color:#ffb04a;background:#3a1a0a;border:1px solid #b5651d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cmsgs{flex:1;min-height:0;overflow-y:auto;border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:7px;background:#06180f;border:2px solid #3a3b40;-webkit-user-select:text;user-select:text}
+.cmsgs .empty{margin:auto;color:#7fa58f;font-size:13px;text-align:center;padding:20px}
+.cb{max-width:82%;border-radius:14px;padding:7px 11px;font-size:14px;line-height:1.3;word-break:break-word}
+.cb.o{align-self:flex-start;background:#1c2b22;border:1px solid #2c4a38}
+.cb.me{align-self:flex-end;background:#7a3c0e;border:1px solid #b5651d;color:#fff}
+.cb small{display:block;font-size:11px;font-weight:800;color:#46de7e;margin-bottom:2px}
+.cb time{display:block;text-align:right;font-size:10px;opacity:.6;margin-top:2px}
+.cquick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cquick button{border-radius:12px;padding:10px 2px;font-weight:800;font-size:13px;white-space:nowrap;background:linear-gradient(#4a4c53,#26272b);border:1px solid #0c0c0d;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 2px 0 #111}
+.clock{border-radius:12px;padding:12px;font-weight:700;font-size:13px;color:#ffb04a;background:#3a1a0a;border:1px solid #b5651d}
+.cform{display:flex;gap:8px;align-items:center}
+.cform .input{flex:1;min-width:0}
+.csend{flex:none;border-radius:12px;padding:14px;font-weight:800;font-size:13px;color:#ffb04a}

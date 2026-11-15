@@ -121,6 +121,7 @@
             <small id="rSub">0 sürücü</small>
           </div>
           <button id="adminBtn" class="rbtn raised hidden" aria-label="Oda yönetimi">🛡</button>
+          <button id="chatBtn" class="rbtn raised" aria-label="Sohbet">💬<i id="chatBadge" class="cbadge hidden">0</i></button>
           <button id="qrBtn" class="rbtn raised" aria-label="QR kod">▦</button>
           <button id="shareBtn" class="rbtn raised" aria-label="Davet et">⤴</button>
         </div>
@@ -254,6 +255,14 @@
 </div>
 
 <!-- Pencereler -->
+<div id="chat" class="chatwrap hidden">
+  <div class="chead"><button id="chatBack" class="cback">‹ Odaya dön</button><h3 id="chatTitle">💬 Sohbet</h3></div>
+  <div id="chatPriv" class="cpriv hidden"></div>
+  <div id="chatMsgs" class="cmsgs"></div>
+  <div id="chatQuick" class="cquick"></div>
+  <div id="chatLock" class="clock hidden">🏍 Sürüşte yazı kapalı: sadece hazır mesajlar</div>
+  <form id="chatForm" class="cform" autocomplete="off"><input id="chatIn" class="input inset" maxlength="200" placeholder="Mesaj yaz…"><button class="csend raised" type="submit">GÖNDER</button></form>
+</div>
 <div id="sheet" class="sheetwrap hidden"><div class="sheetbox raised" id="sheetBox"></div></div>
 <div id="sosAlert" class="sosalert hidden"></div>
 <div id="toast" class="toast hidden"></div>

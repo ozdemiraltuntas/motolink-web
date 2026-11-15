@@ -437,15 +437,17 @@
       toast('Ses sunucusuna bağlanılamadı: ' + (e.message || e), 7000);
       return;
     }
-    if (room.remoteParticipants.size >= CFG.MAX_RIDERS) {
+    const capNow = (acc.room && acc.room.cap !== undefined) ? (acc.room.cap | 0) : CFG.MAX_RIDERS; // 1.3.6: oda kapasitesi (0 = sınırsız)
+    if (capNow > 0 && room.remoteParticipants.size >= capNow) {
       try { room.disconnect(); } catch (x) {}
       S.connecting = false; busy(false);
-      toast('Oda dolu. En fazla ' + CFG.MAX_RIDERS + ' sürücü olabilir.');
+      toast('Oda dolu. En fazla ' + capNow + ' sürücü olabilir.');
       return;
     }
 
     S.room = room; S.code = code; S.server = acc.server || '';
     const info = acc.room || {};
+    S.cap = (info.cap !== undefined) ? (info.cap | 0) : CFG.MAX_RIDERS;
     S.title = info.name || code; S.locked = !!info.locked; S.permanent = !!info.permanent;
     S.owner = acc.owner || ''; S.admins = new Set(acc.admins || []);
     S.nicks = acc.nicks || {}; S.approval = !!(info.approval);
@@ -529,6 +531,7 @@
       finalTick();
       try { if (S.locMode !== 'off') publish({ t: 'loc_off' }); } catch (e) {}
       S.room = null;
+      try { chClear(); } catch (e) {}
       try { await r.disconnect(); } catch (e) {}
     }
     stopTicks(); stopGeo(); keepAwake(false);
@@ -572,6 +575,7 @@
     room.on(E.Disconnected, (reason) => {
       if (S.room !== room) return;
       S.room = null;
+      try { chClear(); } catch (e) {}
       stopTicks(); keepAwake(false);
       $$('audio.lk').forEach((a) => a.remove());
       S.micOn = false;
@@ -640,11 +644,79 @@
       case 'ping': onPing(j, id, name); break;
       case 'img': if (id) onPhotoChunk(j, id, name); break;
       case 'sos': onSos(j, id, name); break;
+      case 'chat': if (id) onChat(j, id, name); break;
       case 'music': onMusic(j); break;
       case 'adm': case 'locks': case 'mod': case 'nick': case 'apr': onAdminMsg(j, id, name); break;
       default: break;
     }
   }
+
+
+  // ------------------------------------------------------------ 1.3.6: oda sohbeti (Android 0.9.99 ile aynı paket: {t:'chat', i, x, to})
+  const CH = { msgs: [], to: null, open: false, unreadAll: 0, unreadPriv: {}, seen: new Set(), last: 0 };
+  const CH_QUICK = ['📍 Odadayız', '🏍 Yoldayım', '☕ Mola', '⛽ Benzin', '👍 Tamam', '👋 Selam'];
+  const chDriving = () => { const m = S.locs[S.id]; return !!m && Date.now() - m.at < 15000 && m.spd >= 40; };
+  function chUnreadTotal() { return CH.unreadAll + Object.values(CH.unreadPriv).reduce((a, b) => a + b, 0); }
+  function chBadge() {
+    const n = chUnreadTotal(), b = $('#chatBadge'); if (!b) return;
+    b.textContent = n; b.classList.toggle('hidden', n === 0);
+  }
+  function chMarkRead() { if (CH.to == null) CH.unreadAll = 0; else delete CH.unreadPriv[CH.to]; chBadge(); }
+  function chThread() {
+    return CH.msgs.filter((m) => CH.to == null ? m.to == null : (m.to != null && ((m.me && m.to === CH.to) || (!m.me && m.from === CH.to))));
+  }
+  function chRender() {
+    if (!CH.open) return;
+    const who = CH.to ? (riders().find((x) => x.id === CH.to) || {}).name || 'Sürücü' : null;
+    $('#chatTitle').textContent = who ? '🔒 Özel · ' + who : '💬 ' + (S.title || S.code || 'Oda') + ' · Sohbet';
+    $('#chatBack').textContent = who ? '‹ Sohbet' : '‹ Odaya dön';
+    $('#chatIn').placeholder = who ? who + "'e yaz…" : 'Mesaj yaz…';
+    const pr = Object.entries(CH.unreadPriv).slice(0, 3);
+    const pe = $('#chatPriv'); pe.classList.toggle('hidden', !(CH.to == null && pr.length));
+    pe.innerHTML = pr.map(([id, n]) => '<button data-id="' + esc(id) + '">✉ ' + esc((riders().find((x) => x.id === id) || {}).name || 'Sürücü') + ' (' + n + ')</button>').join('');
+    pe.querySelectorAll('button').forEach((b) => b.onclick = () => chOpen(b.dataset.id));
+    const th = chThread(), box = $('#chatMsgs');
+    box.innerHTML = th.length ? th.map((m) => '<div class="cb ' + (m.me ? 'me' : 'o') + '">' + (m.me ? '' : '<small>' + esc(m.name) + (m.to ? ' (özel)' : '') + '</small>') + esc(m.x) +
+      '<time>' + new Date(m.at).toTimeString().slice(0, 5) + '</time></div>').join('') :
+      '<div class="empty">' + (CH.to ? 'Bu kişiyle henüz yazışmadınız.' : 'Henüz mesaj yok. Aşağıdaki hazır mesajlarla başla.') + '</div>';
+    box.scrollTop = box.scrollHeight;
+    const lock = chDriving();
+    $('#chatLock').classList.toggle('hidden', !lock); $('#chatForm').classList.toggle('hidden', lock);
+  }
+  function chOpen(to) { if (!S.room) return; CH.to = to || null; CH.open = true; $('#chat').classList.remove('hidden'); chMarkRead(); chRender(); }
+  function chClose() { CH.open = false; $('#chat').classList.add('hidden'); }
+  function chClear() { CH.msgs = []; CH.unreadAll = 0; CH.unreadPriv = {}; CH.seen.clear(); CH.to = null; chClose(); chBadge(); }
+  function chSend(text) {
+    const x = String(text || '').trim().slice(0, 200); if (!x || !S.room) return false;
+    const now = Date.now(); if (now - CH.last < 400) return false; CH.last = now;
+    const i = Math.random().toString(36).slice(2, 14);
+    const j = { t: 'chat', i, x }; if (CH.to) j.to = CH.to;
+    publish(j);
+    CH.msgs.push({ id: i, from: S.id, name: 'Sen', x, at: now, me: true, to: CH.to || null });
+    if (CH.msgs.length > 200) CH.msgs.shift();
+    chRender(); return true;
+  }
+  function onChat(j, from, name) {
+    const to = j.to ? String(j.to) : null;
+    if (to && to !== S.id) return;               // başkasına özel
+    const i = String(j.i || ''); if (!i || CH.seen.has(i)) return;
+    CH.seen.add(i); if (CH.seen.size > 400) CH.seen.delete(CH.seen.values().next().value);
+    const x = String(j.x || '').trim().slice(0, 200); if (!x) return;
+    CH.msgs.push({ id: i, from, name, x, at: Date.now(), me: false, to });
+    if (CH.msgs.length > 200) CH.msgs.shift();
+    const viewing = CH.open && CH.to === (to ? from : null);
+    if (!viewing) {
+      if (!to) CH.unreadAll++; else CH.unreadPriv[from] = (CH.unreadPriv[from] || 0) + 1;
+      if (to) toast('✉ ' + name + ': ' + x);
+      chBadge();
+    }
+    chRender();
+  }
+  $('#chatBtn').onclick = () => chOpen(null);
+  $('#chatBack').onclick = () => { if (CH.to) chOpen(null); else chClose(); };
+  $('#chatForm').onsubmit = (e) => { e.preventDefault(); const inp = $('#chatIn'); if (chSend(inp.value)) inp.value = ''; };
+  $('#chatQuick').innerHTML = CH_QUICK.map((q) => '<button type="button">' + q + '</button>').join('');
+  $$('#chatQuick button').forEach((b) => b.onclick = () => chSend(b.textContent));
 
   function onAdminMsg(j, from, fromName) {
     if (!isAdmin(from)) return; // sadece yöneticiden gelen komutlar
@@ -825,7 +897,7 @@
       $('#rlStatus').textContent = (S.locked ? '🔒 ' : '') + 'ODADASIN · ' + S.code;
       const n = new Date(); $('#rlClock').textContent = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0');
     } catch (e) {}
-    $('#rSub').textContent = list.length + ' / ' + CFG.MAX_RIDERS + ' sürücü' + (S.permanent ? ' · kalıcı oda' : '') + (S.title !== S.code ? ' · ' + S.code : '') + (S.locked ? ' · 🔒' : '');
+    $('#rSub').textContent = list.length + ' / ' + ((S.cap === undefined ? CFG.MAX_RIDERS : S.cap) > 0 ? (S.cap === undefined ? CFG.MAX_RIDERS : S.cap) : '∞') + ' sürücü' + (S.permanent ? ' · kalıcı oda' : '') + (S.title !== S.code ? ' · ' + S.code : '') + (S.locked ? ' · 🔒' : '');
     $('#adminBtn').classList.toggle('hidden', !amAdmin());
     const cls = { ptt: 'c-green', open: 'c-orange', live: 'c-red' };
     $$('.modes .sw').forEach((b) => { b.className = 'sw ' + cls[b.dataset.mode] + (b.dataset.mode === currentMode() ? ' on' : ''); });
@@ -887,17 +959,19 @@
       return;
     }
     const fBtn = isFriend(friendCode(id)) ? '<button class="mbtn raised" disabled>✅ Arkadaş listende</button>' : '<button class="mbtn amber" data-a="friend">👤 Arkadaş olarak ekle</button>';
+    const mBtn = '<button class="mbtn raised" data-a="msg">✉ Mesaj yaz</button>';
     if (!amAdmin()) {
-      sheet('<h3>' + esc(r.name) + '</h3><p>Konuşma modu: ' + MODES[r.mode] + (isAdmin(id) ? ' · oda yöneticisi' : '') + '</p>' + fBtn + '<button class="mbtn raised" id="mx">Kapat</button>',
+      sheet('<h3>' + esc(r.name) + '</h3><p>Konuşma modu: ' + MODES[r.mode] + (isAdmin(id) ? ' · oda yöneticisi' : '') + '</p>' + mBtn + fBtn + '<button class="mbtn raised" id="mx">Kapat</button>',
         (b) => {
           b.querySelector('#mx').onclick = closeSheet;
+          b.querySelector('[data-a="msg"]').onclick = () => { closeSheet(); chOpen(id); };
           const fb = b.querySelector('[data-a="friend"]'); if (fb) fb.onclick = () => { closeSheet(); addFriendFromRoom(id, r.name); };
         });
       return;
     }
     const isOwner = id === S.owner, locked = S.lockedIds.has(id), sil = S.silenced.has(id);
     sheet('<h3>' + esc(r.name) + '</h3><p>' + (isOwner ? '👑 Odayı açan' : isAdmin(id) ? '⭐ Oda yöneticisi' : 'Üye') + (sil ? ' · 🔇 susturuldu' : locked ? ' · 🔒 bas-konuşa kilitli' : '') + '</p>' +
-      fBtn + '<button class="mbtn raised" data-a="ptt">🎙 Bas-konuşa al</button>' +
+      mBtn + fBtn + '<button class="mbtn raised" data-a="ptt">🎙 Bas-konuşa al</button>' +
       (locked ? '<button class="mbtn raised" data-a="unlock">🔓 Açık mikrofon kilidini kaldır</button>' : (!isOwner ? '<button class="mbtn raised" data-a="lock">🔒 Bas-konuşa al ve kilitle</button>' : '')) +
       (!isOwner ? '<button class="mbtn ' + (sil ? 'raised' : 'danger') + '" data-a="sil">' + (sil ? '🔊 Susturmayı kaldır' : '🔇 Sustur (hiç konuşamasın)') + '</button>' : '') +
       '<button class="mbtn raised" data-a="nick">✏️ Odadaki adını değiştir (görev adı)</button>' +
@@ -908,6 +982,7 @@
         const a = btn.dataset.a;
         if (a === 'x') return closeSheet();
         if (a === 'friend') { closeSheet(); addFriendFromRoom(id, r.name); return; }
+        if (a === 'msg') { closeSheet(); chOpen(id); return; }
         if (a === 'kick') {
           sheet('<h3>' + esc(r.name) + ' odadan çıkarılsın mı?</h3><p>30 dakika boyunca geri giremez.</p><button class="mbtn danger" id="ky">🚫 Evet, odadan çıkar</button><button class="mbtn raised" id="kn">Vazgeç</button>',
             (bb) => { bb.querySelector('#kn').onclick = closeSheet; bb.querySelector('#ky').onclick = () => { closeSheet(); modKick(id, r.name); }; });
