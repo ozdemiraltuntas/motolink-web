@@ -163,7 +163,7 @@
         <div class="rscroll">
         <div class="pbar hidden"><button id="photoBtn" class="mbtn raised">📷</button><button id="galleryBtn" class="mbtn raised">🖼</button></div>
         <div id="photoStrip" class="pstrip hidden"></div>
-        <div class="label">ODADAKİLER</div>
+        <div class="label lblrow"><span>ODADAKİLER</span><button id="summonBtn" class="summon">📣 HERKESİ ÇAĞIR</button></div>
         <div id="riders" class="list"></div>
         </div>
       </div>
@@ -263,7 +263,8 @@
   <div id="chatMsgs" class="cmsgs"></div>
   <div id="chatQuick" class="cquick"></div>
   <div id="chatLock" class="clock hidden">🏍 Sürüşte yazı kapalı: sadece hazır mesajlar</div>
-  <form id="chatForm" class="cform" autocomplete="off"><input id="chatIn" enterkeyhint="send" class="input inset" maxlength="200" placeholder="Mesaj yaz…"><button class="csend raised" type="submit">GÖNDER</button></form>
+  <div id="chatSending" class="csending hidden"></div>
+  <form id="chatForm" class="cform" autocomplete="off"><button type="button" id="chatPhoto" class="cphoto raised" aria-label="Fotoğraf gönder">📷</button><input id="chatIn" enterkeyhint="send" class="input inset" maxlength="200" placeholder="Mesaj yaz…"><button class="csend raised" type="submit">GÖNDER</button></form>
 </div>
 <div id="sheet" class="sheetwrap hidden"><div class="sheetbox raised" id="sheetBox"></div></div>
 <div id="sosAlert" class="sosalert hidden"></div>

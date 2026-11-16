@@ -681,16 +681,34 @@
     const pe = $('#chatPriv'); pe.classList.toggle('hidden', !(CH.to == null && pr.length));
     pe.innerHTML = pr.map(([id, n]) => '<button data-id="' + esc(id) + '">✉ ' + esc((riders().find((x) => x.id === id) || {}).name || 'Sürücü') + ' (' + n + ')</button>').join('');
     pe.querySelectorAll('button').forEach((b) => b.onclick = () => chOpen(b.dataset.id));
-    const th = chThread(), box = $('#chatMsgs');
-    box.innerHTML = th.length ? th.map((m) => '<div class="cb ' + (m.me ? 'me' : 'o') + '">' + (m.me ? '' : '<small>' + esc(m.name) + (m.to ? ' (özel)' : '') + '</small>') + esc(m.x) +
+    // 1.4.0: oda sohbetinde fotoğraflar da mesajların arasında, saat sırasıyla görünür
+    let th = chThread(); const box = $('#chatMsgs');
+    if (!CH.to) th = th.concat(PH.list.map((p) => ({ ph: p, at: p.time, me: p.mine, name: p.name }))).sort((x, y) => x.at - y.at);
+    $('#chatPhoto').classList.toggle('hidden', !!CH.to);
+    box.innerHTML = th.length ? th.map((m) => m.ph ?
+      '<div class="cb ph ' + (m.me ? 'me' : 'o') + '">' + (m.me ? '' : '<small>' + esc(m.name) + '</small>') + '<img src="' + m.ph.url + '" data-ph="' + esc(m.ph.id) + '" alt="Fotoğraf"><time>' + new Date(m.at).toTimeString().slice(0, 5) + '</time></div>' :
+      '<div class="cb ' + (m.me ? 'me' : 'o') + '">' + (m.me ? '' : '<small>' + esc(m.name) + (m.to ? ' (özel)' : '') + '</small>') + esc(m.x) +
       '<time>' + new Date(m.at).toTimeString().slice(0, 5) + '</time></div>').join('') :
       '<div class="empty">' + (CH.to ? 'Bu kişiyle henüz yazışmadınız.' : 'Henüz mesaj yok. Aşağıdaki hazır mesajlarla başla.') + '</div>';
+    box.querySelectorAll('img[data-ph]').forEach((im) => { im.onclick = () => viewPhoto(PH.list.find((p) => p.id === im.dataset.ph)); im.onload = () => { box.scrollTop = box.scrollHeight; }; });
     box.scrollTop = box.scrollHeight;
     const lock = chDriving();
     $('#chatLock').classList.toggle('hidden', !lock); $('#chatForm').classList.toggle('hidden', lock);
   }
+  // 1.4.0: klavye açılınca sohbet ekranı görünen alana küçülür; yazı kutusu klavyenin hemen üstünde kalır
+  function chFit() {
+    const el = $('#chat'), vv = window.visualViewport;
+    if (!el || !vv || !CH.open) return;
+    const kb = window.innerHeight - vv.height > 120;
+    el.style.height = kb ? vv.height + 'px' : '';
+    el.style.top = kb ? vv.offsetTop + 'px' : '';
+    el.classList.toggle('kb', kb);
+    if (kb) { try { window.scrollTo(0, 0); } catch (e) {} }
+    const box = $('#chatMsgs'); box.scrollTop = box.scrollHeight;
+  }
+  if (window.visualViewport) { window.visualViewport.addEventListener('resize', chFit); window.visualViewport.addEventListener('scroll', chFit); }
   function chOpen(to) { if (!S.room) return; CH.to = to || null; CH.open = true; $('#chat').classList.remove('hidden'); chMarkRead(); chRender(); }
-  function chClose() { CH.open = false; $('#chat').classList.add('hidden'); }
+  function chClose() { CH.open = false; const el = $('#chat'); el.classList.add('hidden'); el.classList.remove('kb'); el.style.height = ''; el.style.top = ''; try { $('#chatIn').blur(); } catch (e) {} }
   function chClear() { try { $('#chatBanner').classList.add('hidden'); } catch (e) {} CH.msgs = []; CH.unreadAll = 0; CH.unreadPriv = {}; CH.seen.clear(); CH.to = null; chClose(); chBadge(); }
   function chSend(text) {
     const x = String(text || '').trim().slice(0, 200); if (!x || !S.room) return false;
@@ -963,15 +981,32 @@
       '<div class="codebig">' + esc(S.code) + '</div><button class="mbtn raised" id="qrOk">Kapat</button>', (b) => { b.querySelector('#qrOk').onclick = closeSheet; });
   };
   // ⤴ Paylaş: küçük menü (davet et / fotoğraf gönder / fotoğraflar)
+  // 1.4.0: 📣 Herkesi çağır: odayı kaydetmiş herkese "X herkesi ... odasına çağırıyor" bildirimi (sunucu 2 dakikada bir izin verir)
+  $('#summonBtn').onclick = () => {
+    if (!S.room) return;
+    const rn = S.title || S.code;
+    sheet('<h3 style="color:#FFB04A">📣 Herkesi odaya çağır?</h3><p>Bu odayı kaydetmiş ama şu an içeride olmayan herkese bildirim gider:</p>' +
+      '<p style="color:#fff;font-weight:700">\u201c' + esc(S.name || 'Bir sürücü') + ' herkesi ' + esc(rn) + ' odasına çağırıyor\u201d</p>' +
+      '<button class="mbtn amber" id="smYes">📣 EVET, ÇAĞIR</button><button class="mbtn raised" id="smNo">Vazgeç</button>' +
+      '<p class="small">Aynı kişi 2 dakikada bir çağırabilir.</p>', (b) => {
+      b.querySelector('#smNo').onclick = closeSheet;
+      b.querySelector('#smYes').onclick = async () => {
+        closeSheet();
+        try {
+          const r = await api({ action: 'summon', room: S.code, identity: S.id, name: S.name || 'Bir sürücü' });
+          if (r && r.sent === 'BEKLE') toast('Az önce çağırdın. 2 dakika sonra tekrar çağırabilirsin.');
+          else toast('📣 Çağrı gönderildi.');
+        } catch (e) { toast(String(e.message || e)); }
+      };
+    });
+  };
   $('#shareBtn').onclick = () => {
     if (!S.room) return;
     sheet('<h3>Paylaş</h3><button class="mbtn raised" id="shInv">👥 Arkadaşını davet et</button>' +
-      '<button class="mbtn raised" id="shPh">📷 Fotoğraf gönder</button><button class="mbtn raised" id="shGal">🖼 Fotoğraflar (' + PH.list.length + ')</button>' +
+      '<p>📷 Fotoğraf göndermek için 💬 Mesajlar ekranındaki kamera tuşunu kullan.</p>' +
       '<button class="mbtn raised" id="shNo">Kapat</button>', (b) => {
       b.querySelector('#shNo').onclick = closeSheet;
       b.querySelector('#shInv').onclick = () => { closeSheet(); shareInvite(); };
-      b.querySelector('#shPh').onclick = () => { closeSheet(); $('#photoBtn').click(); };
-      b.querySelector('#shGal').onclick = () => { closeSheet(); openGallery(); };
     });
   };
   async function shareInvite() {
@@ -1863,7 +1898,7 @@
       if (!saved) return;
       const rn = ev.title || saved.name || ev.room, who = ev.name || 'Bir sürücü';
       const summon = ev.summon === '1';
-      const title = summon ? '📣 ' + who + ' seni odaya çağırıyor' : '🏍 ' + who + ' odaya girdi';
+      const title = summon ? '📣 ' + who + ' herkesi odaya çağırıyor' : '🏍 ' + who + ' odaya girdi';
       try { if (navigator.vibrate) navigator.vibrate(summon ? [300, 150, 300, 150, 300] : [200]); } catch (e) {}
       try {
         if ('Notification' in window && Notification.permission === 'granted' && navigator.serviceWorker) {
@@ -1903,10 +1938,10 @@
   // Küçük resimler ekranda sürekli durmaz: sadece gönderim çubuğu ve "Fotoğraflar (n)" düğmesi
   function renderPhotos() {
     const g = $('#galleryBtn'); if (g) g.textContent = '🖼 Fotoğraflar (' + PH.list.length + ')';
-    const el = $('#photoStrip');
-    if (PH.sending == null) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+    const el = $('#chatSending');
+    if (PH.sending == null) { el.classList.add('hidden'); el.innerHTML = ''; try { chRender(); } catch (e) {} return; }
     el.classList.remove('hidden');
-    el.innerHTML = '<div class="small">Gönderiliyor… %' + Math.round(PH.sending * 100) + '</div><div class="bar"><i style="width:' + Math.round(PH.sending * 100) + '%"></i></div>';
+    el.innerHTML = '📷 Fotoğraf gönderiliyor… %' + Math.round(PH.sending * 100) + '<div class="bar"><i style="width:' + Math.round(PH.sending * 100) + '%"></i></div>';
   }
   function openGallery() {
     if (!PH.list.length) { toast('Bu odada henüz fotoğraf paylaşılmadı.'); return; }
@@ -1936,11 +1971,8 @@
       const url = URL.createObjectURL(new Blob([bytes], { type: 'image/jpeg' }));
       const photo = { id: j.id, from: id, name, url, time: Date.now(), mine: false };
       addPhoto(photo);
-      const c = $('#pcard');
-      c.innerHTML = '<img src="' + url + '" alt=""><div style="flex:1;min-width:0"><b>📷 ' + esc(name) + ' bir fotoğraf gönderdi</b><small>Görmek için dokun</small></div>';
-      c.classList.remove('hidden');
-      c.onclick = () => { c.classList.add('hidden'); viewPhoto(photo); };
-      clearTimeout(PH.cardT); PH.cardT = setTimeout(() => c.classList.add('hidden'), 8000);
+      // 1.4.0: fotoğraf sohbete düşer; sohbet açık değilse turuncu şerit + okunmamış sayısı
+      if (!(CH.open && !CH.to)) { CH.unreadAll++; chBadge(); chBanner(id, name, '📷 Fotoğraf gönderdi', false); }
       try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {}
     } catch (e) {}
   }
@@ -1970,6 +2002,7 @@
       };
     });
   }
+  $('#chatPhoto').onclick = () => $('#photoBtn').click();
   $('#photoBtn').onclick = () => {
     if (!S.room) { toast('Fotoğraf göndermek için odada olmalısın.'); return; }
     if (PH.sending != null) { toast('Bir önceki fotoğraf hâlâ gönderiliyor.'); return; }
@@ -1997,7 +2030,7 @@
         await new Promise((r) => setTimeout(r, 40));
       }
       addPhoto({ id, from: S.id, name: S.name || 'Ben', url: URL.createObjectURL(blob), time: Date.now(), mine: true });
-      toast('📷 Fotoğraf odaya gönderildi.');
+      toast('📷 Fotoğraf gönderildi.');
     } catch (err) { toast('Fotoğraf gönderilemedi: ' + (err && err.message || 'hata')); }
     PH.sending = null; renderPhotos();
   };

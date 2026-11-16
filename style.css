@@ -436,3 +436,16 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 .sosrow{display:flex;align-items:center;gap:10px;padding:10px 8px;border-radius:12px;font-size:15px;font-weight:600}
 .sosrow.on{color:#7be0a6;font-size:13px}
 .sosrow input{width:22px;height:22px;accent-color:#ff6b6b;flex:none}
+
+/* 1.4.0: Herkesi çağır (Odadakiler başlığında), sohbette fotoğraf, klavye açılınca yazı kutusu görünür */
+.lblrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.summon{font-size:12px;font-weight:900;letter-spacing:0;color:#2A1100;background:linear-gradient(#FFB04A,#F2761C);border:1px solid #FFE2B8;border-radius:11px;padding:7px 11px;white-space:nowrap}
+.summon:active{filter:brightness(.9)}
+.cphoto{width:46px;height:46px;flex:none;border-radius:12px;font-size:20px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,176,74,.7)}
+.cb.ph{padding:5px}
+.cb.ph img{display:block;width:190px;max-width:100%;max-height:190px;object-fit:cover;border-radius:10px;cursor:pointer}
+.csending{font-size:12px;color:#FFB04A;font-weight:700}
+.csending .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:4px}
+.csending .bar i{display:block;height:100%;background:#FFB04A}
+.chatwrap.kb{padding-bottom:8px}
+.chatwrap.kb .cquick{display:none}
