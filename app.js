@@ -176,7 +176,7 @@
     $$('.page').forEach((x) => x.classList.toggle('on', x.id === 'p-' + p));
     $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === (p === 'rooms' || p === 'routes' || p === 'friends' || p === 'plan' ? 'home' : p)));
     if (p === 'rooms') { renderHome(); refreshCounts(); }
-    if (p === 'room' && !S.room) { renderRoomList('#recent2'); refreshCounts(); }
+    if (p === 'room' && !S.room) { renderRoom(); refreshCounts(); }
     if (p === 'routes') renderRoutes();
     if (p === 'plan') setTimeout(initPlanMap, 40);
     if (p === 'map') setTimeout(initMap, 30);
@@ -225,7 +225,7 @@
         Object.keys(ROOM_NAMES).forEach((k) => { if (!(ROOM_COUNTS[k] > 0)) delete ROOM_NAMES[k]; });
         if (busy.length) { const m = await api({ action: 'members', room: busy[0], identity: MY_CODE, rooms: busy.slice(0, 20) }); Object.assign(ROOM_NAMES, m.members || {}); }
       } catch (e) {}
-      renderHome(); if (!S.room) renderRoomList('#recent2');
+      renderHome(); if (!S.room) renderRoom();
     } catch (e) {}
   }
   function renderLcd() {
@@ -291,7 +291,7 @@
     box.querySelectorAll('.row').forEach((el) => el.addEventListener('click', (e) => {
       const rs = store.get('rooms', []);
       const mem = e.target.closest && e.target.closest('[data-mem]'); if (mem) { showMembers(mem.dataset.mem); return; }
-      if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); backupSoon(); setTimeout(() => { try { syncPush(); } catch (e) {} }, 500); renderHome(); renderRoomList('#recent2'); return; }
+      if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); backupSoon(); setTimeout(() => { try { syncPush(); } catch (e) {} }, 500); renderHome(); renderRoom(); return; }
       const r = rs[+el.dataset.i]; if (r) joinRoom(r.code, r.pw || '');
     }));
   }
@@ -911,7 +911,13 @@
     $('#roomEmpty').classList.toggle('hidden', inRoom);
     $('#roomBody').classList.toggle('hidden', !inRoom);
     renderPtt();
+    // 1.3.9: kayıtlı oda listesi SADECE odada değilken görünür (Android ile aynı); odadayken gizlenir ki bas-konuş aşağı kaymasın
+    const hasRooms = (store.get('rooms', []) || []).length > 0;
+    $('#recent2').classList.toggle('hidden', inRoom);
+    $('#roomListHead').classList.toggle('hidden', inRoom || !hasRooms);
+    $('#roomEmpty').classList.toggle('hidden', inRoom || hasRooms);
     if (!inRoom) { renderRoomList('#recent2'); return; }
+    $('#recent2').innerHTML = '';
     const list = riders();
     $('#rLogo').textContent = initial(S.title);
     $('#rTitle').textContent = S.title;
