@@ -49,7 +49,7 @@
     owner: '', admins: new Set(), lockedIds: new Set(), silenced: new Set(), roomLock: false,
     modes: {}, onCall: new Set(), locs: {}, myLoc: null,
     locMode: store.get('locMode', 'off'), watchId: null, lastLocSent: 0,
-    mySos: null, lastPing: {},
+    mySos: (() => { const m = store.get('mySos', null); return m && m.at && Date.now() - m.at < 12 * 3600e3 ? m : null; })(), lastPing: {},
     nicks: {}, approval: false, reqTimer: null, seenReq: new Set(), liveSince: 0,
     tickTimer: null, tickFirst: null, lastTick: 0
   };
@@ -176,6 +176,7 @@
     $$('.page').forEach((x) => x.classList.toggle('on', x.id === 'p-' + p));
     $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === (p === 'rooms' || p === 'routes' || p === 'friends' || p === 'plan' ? 'home' : p)));
     if (p === 'rooms') { renderHome(); refreshCounts(); }
+    if (p === 'room' && !S.room) { renderRoomList('#recent2'); refreshCounts(); }
     if (p === 'routes') renderRoutes();
     if (p === 'plan') setTimeout(initPlanMap, 40);
     if (p === 'map') setTimeout(initMap, 30);
@@ -224,7 +225,7 @@
         Object.keys(ROOM_NAMES).forEach((k) => { if (!(ROOM_COUNTS[k] > 0)) delete ROOM_NAMES[k]; });
         if (busy.length) { const m = await api({ action: 'members', room: busy[0], identity: MY_CODE, rooms: busy.slice(0, 20) }); Object.assign(ROOM_NAMES, m.members || {}); }
       } catch (e) {}
-      renderHome();
+      renderHome(); if (!S.room) renderRoomList('#recent2');
     } catch (e) {}
   }
   function renderLcd() {
@@ -268,6 +269,11 @@
     g.textContent = ('MERHABA ' + (S.name || 'SÜRÜCÜ')).toLocaleUpperCase('tr-TR');
     try { renderLcd(); } catch (e) {}
     $('#installHint').classList.toggle('hidden', !(isIOS && !standalone));
+    renderRoomList('#recent');
+  }
+  // 1.3.7: kayıtlı oda listesi hem Ana > Odalar sayfasında hem alttaki Oda sekmesinde (odada değilken) görünür
+  function renderRoomList(sel) {
+    const box = $(sel); if (!box) return;
     const rooms = store.get('rooms', []);
     // 1.2.0: kişi olan odalar üstte (en kalabalık önce), boşlar alfabetik
     const order = rooms.map((r, i) => i).sort((a, b) => {
@@ -275,17 +281,17 @@
       if (ca !== cb) return cb - ca;
       return String(rooms[a].name || rooms[a].code).localeCompare(String(rooms[b].name || rooms[b].code), 'tr');
     });
-    $('#recent').innerHTML = rooms.length ? order.map((i) => { const r = rooms[i]; const n = ROOM_COUNTS[r.code] || 0; return (
+    box.innerHTML = rooms.length ? order.map((i) => { const r = rooms[i]; const n = ROOM_COUNTS[r.code] || 0; return (
       '<div class="row raised" data-i="' + i + '"><div class="av" style="background:' + colorOf(r.code) + '">' + esc(initial(r.name || r.code)) + '</div>' +
       '<div class="tx"><b>' + esc(r.name || r.code) + '</b><small>' + esc(r.code) + (r.locked ? ' · 🔒 şifreli' : '') + '</small>' +
       memLine(r.code) + '</div>' +
       (n > 0 ? '<span class="cnt-on">● ' + n + ' kişi</span>' : '<span class="cnt-off">Boş</span>') +
       '<button class="x" data-del="' + i + '" aria-label="Listeden kaldır">✕</button></div>'); }).join('')
       : '<div class="note" style="margin:0 2px">Girdiğin odalar burada listelenir.</div>';
-    $$('#recent .row').forEach((el) => el.addEventListener('click', (e) => {
+    box.querySelectorAll('.row').forEach((el) => el.addEventListener('click', (e) => {
       const rs = store.get('rooms', []);
       const mem = e.target.closest && e.target.closest('[data-mem]'); if (mem) { showMembers(mem.dataset.mem); return; }
-      if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); backupSoon(); setTimeout(() => { try { syncPush(); } catch (e) {} }, 500); renderHome(); return; }
+      if (e.target.dataset.del !== undefined) { rs.splice(+e.target.dataset.del, 1); store.set('rooms', rs); backupSoon(); setTimeout(() => { try { syncPush(); } catch (e) {} }, 500); renderHome(); renderRoomList('#recent2'); return; }
       const r = rs[+el.dataset.i]; if (r) joinRoom(r.code, r.pw || '');
     }));
   }
@@ -905,7 +911,7 @@
     $('#roomEmpty').classList.toggle('hidden', inRoom);
     $('#roomBody').classList.toggle('hidden', !inRoom);
     renderPtt();
-    if (!inRoom) return;
+    if (!inRoom) { renderRoomList('#recent2'); return; }
     const list = riders();
     $('#rLogo').textContent = initial(S.title);
     $('#rTitle').textContent = S.title;
@@ -1459,17 +1465,40 @@
   }
 
   // ------------------------------------------------------------ S.O.S
+  // 1.3.7: S.O.S sadece SEÇTİĞİN odalara gider (içinde olduğun oda her zaman seçili). İyiyim tuşu büyük ve ortada.
+  function sosMineShow() {
+    const m = S.mySos; if (!m) return;
+    $('#sosMine').innerHTML = '<h2>🆘 S.O.S YAYINDA</h2><p>\u201c' + esc(m.reason || 'Yardım lazım') + '\u201d bildirdin.</p>' +
+      '<button class="sosok" id="sosOk">✅ İYİYİM<small>S.O.S\'i kapat</small></button>' +
+      '<button class="mbtn raised" id="sosHide">Küçült (S.O.S tuşundan geri aç)</button>';
+    $('#sosMine').classList.remove('hidden');
+    $('#sosOk').onclick = () => { $('#sosMine').classList.add('hidden'); sendSos(null, true); };
+    $('#sosHide').onclick = () => $('#sosMine').classList.add('hidden');
+  }
   $('#sosBtn').onclick = () => {
-    if (S.mySos) {
-      sheet('<h3>S.O.S gönderildi</h3><p>Odadakiler ve kayıtlı odalarındaki arkadaşların uyarıldı.</p><button class="mbtn amber" id="sosOk">✅ İyiyim, S.O.S\'i kapat</button><button class="mbtn raised" id="sosNo">Kapat</button>',
-        (b) => { b.querySelector('#sosNo').onclick = closeSheet; b.querySelector('#sosOk').onclick = () => { closeSheet(); sendSos(null, true); }; });
-      return;
-    }
-    sheet('<h3 style="color:#ff6b6b">S.O.S gönderilsin mi?</h3><p>Konumunla birlikte odadakilere ve kayıtlı odalarındaki arkadaşlarına acil uyarı gider.</p>' +
+    if (S.mySos) { sosMineShow(); return; }
+    const cur = S.room ? S.code : null;
+    const prev = store.get('sosRooms', []);
+    const others = (store.get('rooms', []) || []).filter((r) => r.code !== cur);
+    sheet('<h3 style="color:#ff6b6b">S.O.S gönderilsin mi?</h3><p><b>Kime gitsin?</b> Sadece işaretlediğin odadakiler uyarılır.</p>' +
+      (cur ? '<div class="sosrow on">✓ Şu an içinde olduğun oda: <b>' + esc(S.title || cur) + '</b></div>' : '') +
+      '<div class="sosrooms">' + others.map((r) => '<label class="sosrow"><input type="checkbox" data-c="' + esc(r.code) + '"' + (prev.includes(r.code) ? ' checked' : '') + '> ' + esc(r.name || r.code) + '</label>').join('') + '</div>' +
+      '<p id="sosHint"></p>' +
       ['Kaza yaptım', 'Arıza, yolda kaldım', 'Yardım lazım'].map((r) => '<button class="mbtn danger" data-r="' + r + '">🆘 ' + r + '</button>').join('') +
       '<button class="mbtn raised" id="sosNo">Vazgeç</button>', (b) => {
+      const picked = () => [...b.querySelectorAll('[data-c]:checked')].map((x) => x.dataset.c);
+      const upd = () => {
+        const ok = !!cur || picked().length > 0;
+        b.querySelectorAll('[data-r]').forEach((x) => x.disabled = !ok);
+        b.querySelector('#sosHint').textContent = ok ? '' : 'Önce en az bir oda işaretle (ya da bir odaya gir).';
+      };
+      b.querySelectorAll('[data-c]').forEach((x) => x.onchange = upd); upd();
       b.querySelector('#sosNo').onclick = closeSheet;
-      b.querySelectorAll('[data-r]').forEach((btn) => btn.onclick = () => { closeSheet(); sendSos(btn.dataset.r, false); });
+      b.querySelectorAll('[data-r]').forEach((btn) => btn.onclick = () => {
+        const rooms = picked(); store.set('sosRooms', rooms);
+        if (cur && !rooms.includes(cur)) rooms.unshift(cur);
+        closeSheet(); sendSos(btn.dataset.r, false, rooms);
+      });
     });
   };
   function publishSos(cancel) {
@@ -1477,22 +1506,23 @@
     if (S.myLoc) { j.lat = S.myLoc.lat; j.lon = S.myLoc.lon; }
     publish(j);
   }
-  function sendSos(reason, cancel) {
+  function sendSos(reason, cancel, rooms) {
     const go2 = () => {
-      if (!cancel) S.mySos = { reason };
+      const prev = S.mySos;
+      if (!cancel) { S.mySos = { reason, rooms: rooms || [], at: Date.now() }; store.set('mySos', S.mySos); }
       publishSos(cancel);
-      const rooms = store.get('rooms', []).map((r) => r.code);
-      if (S.code && !rooms.includes(S.code)) rooms.unshift(S.code);
-      const body = { action: 'sos', room: 'SOS', identity: S.id, name: S.name || 'Bir sürücü', reason: reason || (S.mySos && S.mySos.reason) || 'Yardım lazım', cancel: !!cancel, rooms: rooms.slice(0, 30) };
+      const list = (cancel ? ((prev && prev.rooms) || []) : (rooms || [])).slice(0, 30);
+      const body = { action: 'sos', room: 'SOS', identity: S.id, name: S.name || 'Bir sürücü', reason: reason || (S.mySos && S.mySos.reason) || (prev && prev.reason) || 'Yardım lazım', cancel: !!cancel, rooms: list };
       if (S.myLoc) { body.lat = S.myLoc.lat; body.lon = S.myLoc.lon; }
-      api(body).catch(() => {});
-      if (cancel) { S.mySos = null; toast('S.O.S kapatıldı, "iyiyim" bildirildi.'); }
-      else toast('🆘 S.O.S gönderildi.' + (S.myLoc ? '' : ' (Konum bulunamadı)'), 6000);
+      if (list.length) api(body).catch(() => {});
+      if (cancel) { S.mySos = null; store.set('mySos', null); toast('S.O.S kapatıldı, "iyiyim" bildirildi.'); }
+      else { toast('🆘 S.O.S gönderildi.' + (S.myLoc ? '' : ' (Konum bulunamadı)'), 4000); sosMineShow(); }
     };
     if (!cancel && !S.myLoc && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition((p) => { S.myLoc = { lat: p.coords.latitude, lon: p.coords.longitude, spd: 0 }; go2(); }, go2, { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true });
     } else go2();
   }
+  if (S.mySos) setTimeout(sosMineShow, 1200);
   const activeSos = {};
   function onSos(j, id, name) {
     if (!id) return;
