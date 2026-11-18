@@ -540,3 +540,35 @@ body.lite .bezel-lcd,body.lite .raised,body.lite .mbtn,body.lite .sumbig,body.li
 #app,.chatwrap{top:0!important;bottom:auto!important;height:var(--fullH,100%)!important;min-height:0!important}
 #pages{min-height:0}
 .nav{position:relative}
+
+/* 1.4.14: yeni rota oluştur */
+.rbox{position:relative;border-radius:18px;padding:8px 10px 6px;margin-top:6px}
+.rf{display:flex;align-items:center;gap:10px;background:#141518;border-radius:12px;height:50px;padding:0 10px 0 14px;margin:6px 46px 6px 0;box-shadow:inset 0 2px 4px rgba(0,0,0,.6)}
+.rf:focus-within{box-shadow:0 0 0 2px #ffb547}
+.rf input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:#f1f2f5;font-size:16px;font-weight:600}
+.rf input::placeholder{color:#7d838c}
+.rf input::-webkit-search-cancel-button{display:none}
+.rdot{width:13px;height:13px;border-radius:50%;flex:none}.rdot.g{background:#3be083}.rdot.r{background:#ff4b4b}.rdot.y{background:#ffb547}
+.rf .rx{flex:none;width:30px;height:30px;border-radius:9px;color:#aab;font-weight:900}
+.rswap{position:absolute;right:10px;top:36px;width:40px;height:40px;border-radius:50%;font-size:19px;color:#f1f2f5}
+.radd{color:#ffb547;font-weight:800;font-size:14px;padding:6px 4px 4px}
+.rsug{margin-top:8px;border-radius:16px;background:#1f2024;border:1px solid #2c2d31;overflow:hidden}
+.rs{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:11px 14px;border-bottom:1px solid #2a2b2f}
+.rs:last-child{border-bottom:0}.rs:active{background:#2a2c31}
+.rs i{font-style:normal;font-size:20px;width:26px;text-align:center;flex:none}
+.rs span{min-width:0;flex:1}.rs b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rs small{display:block;color:#9a9da5;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rsn{padding:12px 14px;color:#9a9da5;font-size:13.5px}
+.rgo{margin-top:10px;height:56px;font-size:18px;font-weight:900;letter-spacing:.5px}
+.rgo.dim{opacity:.45}
+#rResult #planMap{height:min(34vh,260px);margin-top:10px}
+#rResult .lcdbox{margin-top:8px}
+.rpin{width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 5px rgba(0,0,0,.5)}
+.rwx{display:flex;gap:6px}
+.rwx>div{flex:1;min-width:0;background:#1f2024;border:1px solid #2c2d31;border-radius:12px;padding:7px 3px;text-align:center}
+.rwx>div.w{border-color:#ff4b4b;box-shadow:0 0 0 1px #ff4b4b}
+.rwx b{display:block;font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rwx span{font-size:22px;display:block;line-height:1.3}.rwx em{font-style:normal;font-weight:800;font-size:14px}.rwx small{display:block;color:#9a9da5;font-size:10.5px}
+.rwx .rsn{flex:1}
+.rwarn{margin:8px 2px 0;font-size:13.5px;color:#ffb547;font-weight:700;line-height:1.35}.rwarn.ok{color:#3be083}
+.rbt{display:flex;gap:6px;margin:10px 0 6px}
+.rbt button{flex:1;min-width:0;height:58px;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:20px;line-height:1}
+.rbt small{font-size:11px;font-weight:800;margin-top:4px;color:#e6e8ec}

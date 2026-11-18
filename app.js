@@ -249,7 +249,7 @@
     page = p;
     if (p === 'room') setTimeout(fitRoom, 60);
     $$('.page').forEach((x) => x.classList.toggle('on', x.id === 'p-' + p));
-    $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === (p === 'rooms' || p === 'routes' || p === 'friends' || p === 'plan' ? 'home' : p)));
+    $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === (p === 'rooms' || p === 'routes' || p === 'friends' || (p === 'plan' && PLAN.from === 'routes') ? 'home' : p === 'plan' ? 'map' : p)));
     if (p === 'rooms') { renderHome(); refreshCounts(); }
     if (p === 'room' && !S.room) { renderRoom(); refreshCounts(); }
     if (p === 'routes') renderRoutes();
@@ -1717,94 +1717,245 @@
     try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
     try { await navigator.clipboard.writeText(text); toast('📋 Kopyalandı, mesaja yapıştırabilirsin.'); } catch (e) { toast('Kopyalanamadı.'); }
   }
-  let PLAN = { name: '', stops: [] }, planMap = null, planLayer = null, planPins = [], planTimer = null, planSeq = 0;
-  function openPlan(p) { PLAN = p ? { name: p.name, stops: p.stops.map((s) => ({ ...s })) } : { name: '', stops: [] }; go('plan'); }
-  function initPlanMap() {
-    if (!planMap) {
-      planMap = L.map('planMap', { zoomControl: true, attributionControl: false }).setView([39.0, 35.0], 6);
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(planMap);
-      planMap.on('click', (e) => addStop(e.latlng.lat, e.latlng.lng, ''));
-    }
-    planMap.invalidateSize(); $('#planName').value = PLAN.name; $('#planRes').innerHTML = ''; $('#planQ').value = '';
-    renderPlan(true);
+  // ------------------------------------------------------------ 1.4.14: YENİ ROTA OLUŞTUR (Nereden / Nereye, yazarken öneri, yol üstünde hava)
+  // Alanlar: { me:true } = Konumum · { n, sub, lat, lon } = seçilmiş yer · { n:'' } = boş
+  let PLAN = { name: '', stops: [] }, planMap = null, planLayer = null, planPins = [], planSeq = 0;
+  let RF = [], rAct = -1, rSugT = null, rSugSeq = 0, rLast = null;   // rLast: son hesaplanan rota { stops, km, sec, geo }
+  const ME = () => ({ me: true, n: 'Konumum' });
+  function openPlan(p, from) {
+    rLast = null;
+    if (p && p.stops && p.stops.length) {
+      RF = p.stops.map((s) => (s.me ? ME() : { n: s.n, lat: s.lat, lon: s.lon }));
+      if (RF.length < 2) RF.push({ n: '' });
+      PLAN = { name: p.name || '', stops: [], auto: RF.every((f) => f.me || f.lat != null) };
+    } else { RF = [ME(), { n: '' }]; PLAN = { name: '', stops: [], auto: false }; }
+    PLAN.from = from || 'map';
+    go('plan');
   }
-  async function revName(lat, lon) {
+  function initPlanMap() {
+    $('#rResult').classList.add('hidden'); $('#rSug').classList.add('hidden'); rAct = -1;
+    renderFields();
+    if (PLAN.auto) { PLAN.auto = false; buildRoute(); }
+    else { const e = RF.findIndex((f) => !f.me && f.lat == null); if (e >= 0 && !PLAN.q) setTimeout(() => { const i = $('#rFields input[data-f="' + e + '"]'); if (i) i.focus(); }, 120); }
+    if (PLAN.q) { const q = PLAN.q; PLAN.q = ''; const e = RF.findIndex((f) => !f.me && f.lat == null); if (e >= 0) { RF[e].n = q; renderFields(); const i = $('#rFields input[data-f="' + e + '"]'); if (i) { i.focus(); rAct = e; rSuggest(q); } } }
+  }
+  function fieldReady(f) { return f.me || f.lat != null; }
+  function renderFields() {
+    const n = RF.length;
+    $('#rFields').innerHTML = RF.map((f, i) => {
+      const dot = i === 0 ? 'g' : i === n - 1 ? 'r' : 'y';
+      const ph = i === 0 ? 'Nereden?' : i === n - 1 ? 'Nereye gidiyoruz?' : 'Ara durak';
+      return '<div class="rf' + (fieldReady(f) ? ' ok' : '') + '"><span class="rdot ' + dot + '"></span>' +
+        '<input data-f="' + i + '" type="search" enterkeyhint="search" autocomplete="off" placeholder="' + ph + '" value="' + esc(f.me ? '📍 Konumum' : f.n) + '">' +
+        (i > 0 && i < n - 1 ? '<button class="rx" data-x="' + i + '" aria-label="Kaldır">✕</button>' : '') + '</div>';
+    }).join('');
+    $$('#rFields input').forEach((el) => {
+      const i = +el.dataset.f;
+      el.addEventListener('focus', () => { rAct = i; if (RF[i].me) { el.value = ''; } el.select && el.select(); rSuggest(el.value.trim()); });
+      el.addEventListener('input', () => { RF[i] = { n: el.value }; rAct = i; clearTimeout(rSugT); const q = el.value.trim(); rSugT = setTimeout(() => rSuggest(q), q.length < 3 ? 150 : 350); rGoUi(); });
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { const first = $('#rSug [data-s]'); if (first) first.click(); } });
+      el.addEventListener('blur', () => setTimeout(() => { if (document.activeElement && document.activeElement.closest && document.activeElement.closest('#rFields')) return; if (RF[i] && RF[i].me) el.value = '📍 Konumum'; }, 250));
+    });
+    $$('#rFields [data-x]').forEach((b) => b.onclick = () => { RF.splice(+b.dataset.x, 1); renderFields(); rGoUi(); });
+    rGoUi();
+  }
+  function rGoUi() { const ok = RF.filter(fieldReady).length >= 2 && RF.every(fieldReady); $('#rGo').disabled = !ok; $('#rGo').classList.toggle('dim', !ok); }
+  $('#rSwap').onclick = () => { RF.reverse(); renderFields(); $('#rResult').classList.add('hidden'); };
+  $('#rAdd').onclick = () => { if (RF.length >= 8) { toast('En fazla 8 nokta.'); return; } RF.splice(RF.length - 1, 0, { n: '' }); renderFields(); const i = $('#rFields input[data-f="' + (RF.length - 2) + '"]'); if (i) i.focus(); };
+  const rRecent = () => store.get('rRecent', []) || [];
+  function rRemember(p) { const l = rRecent().filter((x) => x.n !== p.n); l.unshift({ n: p.n, sub: p.sub || '', lat: p.lat, lon: p.lon }); store.set('rRecent', l.slice(0, 8)); }
+  function rIcon(k, v) {
+    if (/city|town|village|suburb|county|state|district|municipality/.test(v) || k === 'place' || k === 'boundary') return '🏙';
+    return ({ aerodrome: '✈️', fuel: '⛽', restaurant: '🍽', cafe: '☕', fast_food: '🍔', hotel: '🏨', motel: '🏨', hospital: '🏥', pharmacy: '💊', parking: '🅿️', beach: '🏖', peak: '⛰', water: '🌊', lake: '🌊', bus_station: '🚌', station: '🚆', mall: '🛍', supermarket: '🛒', mosque: '🕌', museum: '🏛', motorcycle: '🏍' })[v] || (k === 'highway' ? '🛣' : '📍');
+  }
+  function rSugShow(items, head) {
+    const box = $('#rSug');
+    if (!items.length && !head) { box.classList.add('hidden'); return; }
+    box.innerHTML = (head || '') + items.map((x, i) => '<button class="rs" data-s="' + i + '"><i>' + x.ic + '</i><span><b>' + esc(x.n) + '</b><small>' + esc(x.sub || '') + '</small></span></button>').join('');
+    box.classList.remove('hidden');
+    $$('#rSug [data-s]').forEach((b) => b.addEventListener('mousedown', (e) => e.preventDefault()));
+    $$('#rSug [data-s]').forEach((b) => b.onclick = () => rPick(items[+b.dataset.s]));
+  }
+  function rPick(x) {
+    if (rAct < 0) return;
+    if (x.me) RF[rAct] = ME();
+    else { RF[rAct] = { n: x.n, sub: x.sub, lat: x.lat, lon: x.lon }; rRemember(x); }
+    $('#rSug').classList.add('hidden');
+    renderFields();
+    const next = RF.findIndex((f) => !fieldReady(f));
+    if (next >= 0) { const i = $('#rFields input[data-f="' + next + '"]'); if (i) i.focus(); }
+    else { try { document.activeElement.blur(); } catch (e) {} buildRoute(); }   // hepsi seçildi: rota kendiliğinden çizilsin
+  }
+  function rDistTxt(lat, lon) { if (!S.myLoc) return ''; const d = dist(S.myLoc, { lat, lon }); return d < 1000 ? Math.round(d) + ' m' : Math.round(d / 1000) + ' km'; }
+  async function rSuggest(q) {
+    const my = ++rSugSeq;
+    const meItem = { me: true, ic: '📍', n: 'Konumum', sub: 'Şu an bulunduğun yer' };
+    if (!q || q.length < 2) {
+      const rec = rRecent().map((r) => ({ ic: '🕘', n: r.n, sub: (r.sub ? r.sub + ' · ' : '') + 'son aramalar', lat: r.lat, lon: r.lon }));
+      rSugShow([meItem].concat(rec)); return;
+    }
+    rSugShow([], '<div class="rsn">Aranıyor…</div>');
+    let items = [];
     try {
-      const r = await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&accept-language=tr&lat=' + lat + '&lon=' + lon);
-      const j = await r.json(); const a = j.address || {};
-      return String(a.road || a.suburb || a.village || a.town || a.city || j.name || (j.display_name || '').split(',')[0] || '').slice(0, 40);
+      const bias = S.myLoc ? '&lat=' + S.myLoc.lat.toFixed(3) + '&lon=' + S.myLoc.lon.toFixed(3) : '&lat=39.9&lon=32.85';
+      const r = await fetch('https://photon.komoot.io/api/?limit=8&q=' + encodeURIComponent(q) + bias);
+      const j = await r.json(); if (my !== rSugSeq) return;
+      const seen = new Set();
+      (j.features || []).forEach((f) => {
+        const p = f.properties || {}, c = (f.geometry || {}).coordinates || [];
+        if (c.length < 2) return;
+        const name = p.name || [p.street, p.housenumber].filter(Boolean).join(' ') || p.city; if (!name) return;
+        const place = [p.district, p.city !== name ? p.city : '', p.county, p.state !== p.city ? p.state : ''].filter(Boolean);
+        const sub = [...new Set(place)].slice(0, 2).join(', ') + (p.country && p.country !== 'Türkiye' && p.country !== 'Turkey' ? (place.length ? ', ' : '') + p.country : '');
+        const key = name + '|' + sub; if (seen.has(key)) return; seen.add(key);
+        const dt = rDistTxt(c[1], c[0]);
+        items.push({ ic: rIcon(p.osm_key, p.osm_value || p.type || ''), n: name, sub: sub + (dt ? (sub ? ' · ' : '') + dt : ''), lat: +c[1].toFixed(5), lon: +c[0].toFixed(5) });
+      });
+    } catch (e) {
+      try {   // yedek: OpenStreetMap araması
+        const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=tr&q=' + encodeURIComponent(q));
+        const l = await r.json(); if (my !== rSugSeq) return;
+        items = l.map((x) => ({ ic: rIcon(x.category, x.type), n: String(x.name || x.display_name).split(',')[0], sub: String(x.display_name).split(',').slice(1, 3).join(',').trim(), lat: +(+x.lat).toFixed(5), lon: +(+x.lon).toFixed(5) }));
+      } catch (e2) { if (my === rSugSeq) rSugShow([], '<div class="rsn">Arama yapılamadı (internet?).</div>'); return; }
+    }
+    if (my !== rSugSeq) return;
+    rSugShow(items, items.length ? '' : '<div class="rsn">Bulunamadı. Başka bir yazımla dene (ör. "Abant Gölü").</div>');
+  }
+  document.addEventListener('click', (e) => { if (!e.target.closest || (!e.target.closest('#rSug') && !e.target.closest('#rFields'))) $('#rSug').classList.add('hidden'); });
+  function getMyPos() {
+    return new Promise((ok, no) => {
+      if (S.myLoc && S.myLoc.lat) { ok({ lat: S.myLoc.lat, lon: S.myLoc.lon }); return; }
+      if (!navigator.geolocation) { no(new Error('konum yok')); return; }
+      navigator.geolocation.getCurrentPosition((p) => ok({ lat: p.coords.latitude, lon: p.coords.longitude }), () => no(new Error('izin')), { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 });
+    });
+  }
+  function fmtDurS(sec) { const m = Math.round(sec / 60); return m >= 60 ? Math.floor(m / 60) + ' SA ' + (m % 60) + ' DK' : m + ' DK'; }
+  const hhmm = (d) => String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  async function buildRoute() {
+    if (!RF.every(fieldReady)) { toast('Önce nereden ve nereye seç.'); return; }
+    const my = ++planSeq;
+    $('#rSug').classList.add('hidden');
+    $('#rResult').classList.remove('hidden');
+    setTimeout(() => { try { $('#rResult').scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) {} }, 120);
+    $('#planKm').textContent = 'HESAPLANIYOR…'; $('#planSub').textContent = ''; $('#planTag').textContent = 'ROTA';
+    $('#rWx').innerHTML = ''; $('#rWarn').textContent = '';
+    let stops;
+    try {
+      stops = [];
+      for (const f of RF) { if (f.me) { const p = await getMyPos(); stops.push({ lat: +p.lat.toFixed(5), lon: +p.lon.toFixed(5), n: 'Konumum' }); } else stops.push({ lat: f.lat, lon: f.lon, n: f.n }); }
+    } catch (e) { $('#planKm').textContent = 'KONUM YOK'; $('#planSub').textContent = 'Konum izni ver ya da "Nereden"e bir yer yaz.'; return; }
+    if (!planMap) {
+      planMap = L.map('planMap', { zoomControl: false, attributionControl: false }).setView([39.0, 35.0], 6);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(planMap);
+    }
+    setTimeout(() => planMap.invalidateSize(), 50);
+    planPins.forEach((m) => planMap.removeLayer(m)); planPins = [];
+    if (planLayer) { planMap.removeLayer(planLayer); planLayer = null; }
+    stops.forEach((s, i) => {
+      const c = i === 0 ? '#3be083' : i === stops.length - 1 ? '#ff4b4b' : '#ffffff';
+      planPins.push(L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html: '<div class="rpin" style="background:' + c + '"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(planMap));
+    });
+    planMap.fitBounds(stops.map((s) => [s.lat, s.lon]), { padding: [30, 30], maxZoom: 13 });
+    try {
+      const q = stops.map((s) => s.lon + ',' + s.lat).join(';');
+      const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + q + '?overview=full&geometries=geojson');
+      const j = await r.json(); if (my !== planSeq) return;
+      const rt = j.routes && j.routes[0]; if (!rt) throw new Error('yok');
+      const geo = rt.geometry.coordinates.map((c) => [c[1], c[0]]);
+      planLayer = L.polyline(geo, { color: '#2d7cff', weight: 6, opacity: 0.9 }).addTo(planMap);
+      planMap.fitBounds(planLayer.getBounds(), { padding: [24, 24] });
+      rLast = { stops, km: rt.distance / 1000, sec: rt.duration, geo };
+      const eta = new Date(Date.now() + rt.duration * 1000);
+      const molas = Math.floor(rt.duration / 7200);
+      $('#planKm').textContent = Math.round(rt.distance / 1000) + ' KM · ' + fmtDurS(rt.duration);
+      $('#planSub').textContent = 'Varış ≈ ' + hhmm(eta) + (molas ? ' · ' + molas + ' mola önerilir' : '') + (stops.length > 2 ? ' · ' + (stops.length - 2) + ' ara durak' : '');
+      routeWeather(my);
+    } catch (e) { if (my === planSeq) { $('#planKm').textContent = 'YOL BULUNAMADI'; $('#planSub').textContent = 'İnternetini kontrol et ya da başka bir yer seç.'; } }
+  }
+  // Yol üstünde hava: rotanın 5 noktasında, oraya varacağın saatteki hava (Open-Meteo, ücretsiz; tek istek)
+  const WX = (c) => c === 0 ? '☀️' : c <= 2 ? '🌤' : c === 3 ? '☁️' : (c === 45 || c === 48) ? '🌫' : c <= 57 ? '🌦' : c <= 67 ? '🌧' : c <= 77 ? '🌨' : c <= 82 ? '🌧' : c <= 86 ? '🌨' : '⛈';
+  async function routeWeather(my) {
+    const R = rLast; if (!R) return;
+    const g = R.geo; const cum = [0];
+    for (let i = 1; i < g.length; i++) cum.push(cum[i - 1] + dist({ lat: g[i - 1][0], lon: g[i - 1][1] }, { lat: g[i][0], lon: g[i][1] }));
+    const tot = cum[cum.length - 1] || 1;
+    const fr = R.km < 15 ? [0, 1] : [0, 0.25, 0.5, 0.75, 1];
+    const pts = fr.map((f) => { let k = cum.findIndex((d) => d >= f * tot); if (k < 0) k = g.length - 1; return { lat: g[k][0], lon: g[k][1], f, at: new Date(Date.now() + R.sec * 1000 * f) }; });
+    $('#rWx').innerHTML = '<div class="rsn">Hava durumu alınıyor…</div>';
+    try {
+      const days = Math.min(7, Math.ceil(R.sec / 86400) + 2);
+      const u = 'https://api.open-meteo.com/v1/forecast?latitude=' + pts.map((p) => p.lat.toFixed(3)).join(',') + '&longitude=' + pts.map((p) => p.lon.toFixed(3)).join(',') +
+        '&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m&timezone=GMT&forecast_days=' + days;
+      const [wr, names] = await Promise.all([fetch(u).then((r) => r.json()), Promise.all(pts.map((p, i) => i === 0 ? Promise.resolve(R.stops[0].n === 'Konumum' ? '' : R.stops[0].n) : i === pts.length - 1 ? Promise.resolve(R.stops[R.stops.length - 1].n) : placeName(p.lat, p.lon)))]);
+      if (my !== planSeq) return;
+      const arr = Array.isArray(wr) ? wr : [wr];
+      const warns = [];
+      const tiles = pts.map((p, i) => {
+        const h = (arr[i] || {}).hourly || {}; const key = p.at.toISOString().slice(0, 13) + ':00';
+        let k = (h.time || []).indexOf(key); if (k < 0) k = 0;
+        const t = Math.round((h.temperature_2m || [])[k]), c = (h.weather_code || [])[k] || 0, pr = (h.precipitation_probability || [])[k] || 0, w = Math.round((h.wind_speed_10m || [])[k] || 0);
+        const nm = (names[i] || (i === 0 ? 'Başlangıç' : 'Yol')).slice(0, 18);
+        const bad = [];
+        if (c === 45 || c === 48) bad.push('sis');
+        if (c >= 71 && c <= 77 || c === 85 || c === 86) bad.push('kar');
+        else if (c >= 51 && c <= 67 || c >= 80 && c <= 82 || pr >= 60) bad.push('yağmur, yol kaygan');
+        if (c >= 95) bad.push('fırtına / yıldırım');
+        if (!isNaN(t) && t <= 3) bad.push(t + '°: buzlanma olabilir');
+        if (w >= 40) bad.push('kuvvetli rüzgar ' + w + ' km/s');
+        if (bad.length) warns.push('⚠ ' + nm + ': ' + bad.join(', ') + '.');
+        return '<div class="' + (bad.length ? 'w' : '') + '"><b>' + esc(nm) + '</b><span>' + WX(c) + '</span><em>' + (isNaN(t) ? '–' : t + '°') + '</em><small>' + hhmm(p.at) + '</small></div>';
+      });
+      $('#rWx').innerHTML = tiles.join('');
+      $('#rWarn').textContent = warns.length ? warns.slice(0, 3).join(' ') + ' Dikkatli sür.' : '✅ Yol boyunca hava uygun görünüyor.';
+      $('#rWarn').classList.toggle('ok', !warns.length);
+    } catch (e) { if (my === planSeq) $('#rWx').innerHTML = '<div class="rsn">Hava durumu alınamadı.</div>'; }
+  }
+  async function placeName(lat, lon) {
+    try {
+      const r = await fetch('https://photon.komoot.io/reverse?lat=' + lat.toFixed(4) + '&lon=' + lon.toFixed(4) + '&limit=1');
+      const j = await r.json(); const p = ((j.features || [])[0] || {}).properties || {};
+      return p.district || p.city || p.county || p.name || p.state || '';
     } catch (e) { return ''; }
   }
-  function addStop(lat, lon, name) {
-    const s = { lat: +lat.toFixed(5), lon: +lon.toFixed(5), n: name || 'Durak ' + (PLAN.stops.length + 1) };
-    PLAN.stops.push(s); renderPlan(false);
-    if (!name) revName(s.lat, s.lon).then((n) => { if (n && PLAN.stops.includes(s)) { s.n = n; renderPlan(false, true); } });
-  }
-  function renderPlan(fit, noRoute) {
-    planPins.forEach((m) => planMap && planMap.removeLayer(m)); planPins = [];
-    $('#planStops').innerHTML = PLAN.stops.map((s, i) => '<div class="stp raised"><span class="n">' + (i + 1) + '</span><div class="tx"><b>' + esc(s.n) + '</b></div>' +
-      '<button data-up="' + i + '"' + (i ? '' : ' disabled') + '>↑</button><button data-dn="' + i + '"' + (i < PLAN.stops.length - 1 ? '' : ' disabled') + '>↓</button><button data-rm="' + i + '">✕</button></div>').join('');
-    $$('#planStops [data-up]').forEach((b) => b.onclick = () => { const i = +b.dataset.up; [PLAN.stops[i - 1], PLAN.stops[i]] = [PLAN.stops[i], PLAN.stops[i - 1]]; renderPlan(false); });
-    $$('#planStops [data-dn]').forEach((b) => b.onclick = () => { const i = +b.dataset.dn; [PLAN.stops[i + 1], PLAN.stops[i]] = [PLAN.stops[i], PLAN.stops[i + 1]]; renderPlan(false); });
-    $$('#planStops [data-rm]').forEach((b) => b.onclick = () => { PLAN.stops.splice(+b.dataset.rm, 1); renderPlan(false); });
-    if (planMap) {
-      PLAN.stops.forEach((s, i) => planPins.push(L.marker([s.lat, s.lon], { icon: L.divIcon({ className: '', html: '<div class="pin">' + (i + 1) + '</div>', iconSize: [26, 26], iconAnchor: [13, 13] }) }).addTo(planMap)));
-      if (fit && PLAN.stops.length) planMap.fitBounds(PLAN.stops.map((s) => [s.lat, s.lon]), { padding: [30, 30], maxZoom: 14 });
-    }
-    if (noRoute) return;
-    if (planLayer && planMap) { planMap.removeLayer(planLayer); planLayer = null; }
-    if (PLAN.stops.length < 2) { $('#planKm').textContent = PLAN.stops.length ? '1 durak' : 'Durak ekle'; $('#planSub').textContent = 'En az 2 durak gerekli'; return; }
-    $('#planKm').textContent = 'Hesaplanıyor…'; $('#planSub').textContent = '';
-    clearTimeout(planTimer); const my = ++planSeq;
-    planTimer = setTimeout(async () => {
-      try {
-        const q = PLAN.stops.map((s) => s.lon + ',' + s.lat).join(';');
-        const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + q + '?overview=full&geometries=geojson');
-        const j = await r.json(); if (my !== planSeq) return;
-        const rt = j.routes && j.routes[0]; if (!rt) throw new Error('yok');
-        planLayer = L.polyline(rt.geometry.coordinates.map((c) => [c[1], c[0]]), { color: '#ff7a00', weight: 5, opacity: 0.9 }).addTo(planMap);
-        $('#planKm').textContent = (rt.distance / 1000).toFixed(1).replace('.', ',') + ' km';
-        const m = Math.round(rt.duration / 60); $('#planSub').textContent = 'Yaklaşık ' + (m >= 60 ? Math.floor(m / 60) + ' sa ' + (m % 60) + ' dk' : m + ' dk') + ' · ' + PLAN.stops.length + ' durak';
-      } catch (e) { if (my === planSeq) { $('#planKm').textContent = '—'; $('#planSub').textContent = 'Yol hesaplanamadı (internet?)'; } }
-    }, 500);
-  }
-  async function planSearch() {
-    const q = $('#planQ').value.trim(); if (!q) return;
-    $('#planRes').innerHTML = '<div class="note">Aranıyor…</div>';
-    try {
-      const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=tr&accept-language=tr&q=' + encodeURIComponent(q));
-      const l = await r.json();
-      $('#planRes').innerHTML = l.length ? l.map((x, i) => '<div class="row raised" data-r="' + i + '"><div class="tx"><b>' + esc(String(x.name || x.display_name).split(',')[0]) + '</b><small>' + esc(String(x.display_name).slice(0, 80)) + '</small></div><span class="cnt-on">＋ Ekle</span></div>').join('') : '<div class="note">Bulunamadı.</div>';
-      $$('#planRes [data-r]').forEach((el) => el.onclick = () => { const x = l[+el.dataset.r]; addStop(+x.lat, +x.lon, String(x.name || x.display_name).split(',')[0].slice(0, 40)); $('#planRes').innerHTML = ''; $('#planQ').value = ''; planMap && planMap.setView([+x.lat, +x.lon], 12); });
-    } catch (e) { $('#planRes').innerHTML = '<div class="note">Arama yapılamadı (internet?).</div>'; }
-  }
-  $('#planGo').onclick = planSearch;
-  $('#planQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') planSearch(); });
-  $('#planBack').onclick = () => go('routes');
-  $('#planNew').onclick = () => openPlan(null);
-  // 1.4.11: Harita sayfasından rota: "Nereye gidiyoruz?" yazınca rota hazırla açılır, konumun ilk durak olur, yer aranır
-  function mapPlan(q) {
-    const st = S.myLoc ? [{ lat: +S.myLoc.lat.toFixed(5), lon: +S.myLoc.lon.toFixed(5), n: 'Konumum' }] : [];
-    openPlan({ name: '', stops: st });
-    if (q) setTimeout(() => { $('#planQ').value = q; planSearch(); }, 250);
-  }
-  $('#mapQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const q = $('#mapQ').value.trim(); $('#mapQ').blur(); $('#mapQ').value = ''; if (q) mapPlan(q); } });
+  $('#rGo').onclick = () => { if (!$('#rGo').disabled) buildRoute(); else toast('Önce nereden ve nereye seç.'); };
+  $('#rNav').onclick = () => {
+    const R = rLast; if (!R) return;
+    const s = R.stops, a = s[0], b = s[s.length - 1], mid = s.slice(1, -1);
+    const g = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + a.lat + ',' + a.lon + '&destination=' + b.lat + ',' + b.lon + (mid.length ? '&waypoints=' + mid.map((x) => x.lat + ',' + x.lon).join('|') : '');
+    const ap = 'https://maps.apple.com/?dirflg=d&saddr=' + a.lat + ',' + a.lon + '&daddr=' + b.lat + ',' + b.lon;
+    const ya = 'https://yandex.com.tr/maps/?rtext=' + s.map((x) => x.lat + ',' + x.lon).join('~') + '&rtt=auto';
+    sheet('<h3>🧭 Navigasyonu başlat</h3><p>Sesli yol tarifi için rota seçtiğin harita uygulamasında açılır.</p>' +
+      '<button class="mbtn amber" id="nvG">Google Haritalar</button>' + (isIOS ? '<button class="mbtn raised" id="nvA">Apple Haritalar' + (mid.length ? ' (ara duraksız)' : '') + '</button>' : '') +
+      '<button class="mbtn raised" id="nvY">Yandex Haritalar</button><button class="mbtn raised" id="nvN">Vazgeç</button>', (bx) => {
+        bx.querySelector('#nvG').onclick = () => { closeSheet(); window.open(g, '_blank'); };
+        const na = bx.querySelector('#nvA'); if (na) na.onclick = () => { closeSheet(); window.open(ap, '_blank'); };
+        bx.querySelector('#nvY').onclick = () => { closeSheet(); window.open(ya, '_blank'); };
+        bx.querySelector('#nvN').onclick = closeSheet;
+      });
+  };
+  $('#planBack').onclick = () => go(PLAN.from || 'map');
+  $('#planNew').onclick = () => openPlan(null, 'routes');
+  // Harita sayfasından: "Nereye gidiyoruz?" yazınca rota oluştur açılır; Nereden = Konumum, yazdığın yer için öneriler çıkar
+  function mapPlan(q) { openPlan(null, 'map'); PLAN.q = q || ''; }
+  $('#mapQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const q = $('#mapQ').value.trim(); $('#mapQ').blur(); $('#mapQ').value = ''; mapPlan(q); } });
+  $('#mapQ').addEventListener('focus', () => { const q = $('#mapQ').value.trim(); $('#mapQ').blur(); $('#mapQ').value = ''; mapPlan(q); });
   $('#mtPlan').onclick = () => { const q = $('#mapQ').value.trim(); $('#mapQ').value = ''; mapPlan(q); };
   $('#mtRoutes').onclick = () => go('routes');
   $('#mtRec').onclick = () => { if (REC.on) recStop(true); else recStart(); mtRecUi(); };
   function mtRecUi() { $('#mtRec').classList.toggle('on', REC.on); $('#mtRecI').textContent = REC.on ? '⏹' : '⏺'; $('#mtRecT').textContent = REC.on ? 'Bitir' : 'Kayıt'; }
-  $('#planLoc').onclick = () => {
-    if (!navigator.geolocation) { toast('Konum alınamıyor.'); return; }
-    navigator.geolocation.getCurrentPosition((p) => { addStop(p.coords.latitude, p.coords.longitude, 'Konumum'); planMap && planMap.setView([p.coords.latitude, p.coords.longitude], 13); }, () => toast('Konum izni verilmedi.'), { enableHighAccuracy: true, timeout: 10000 });
-  };
-  function planNow() { PLAN.name = $('#planName').value.trim() || ('Rota ' + new Date().toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })); return PLAN; }
-  $('#planSave').onclick = () => { if (!PLAN.stops.length) { toast('Önce durak ekle.'); return; } savePlan(planNow()); toast('✅ Rota kaydedildi'); go('routes'); };
+  function planNow() {
+    const R = rLast; const st = R ? R.stops : RF.filter((f) => f.lat != null).map((f) => ({ lat: f.lat, lon: f.lon, n: f.n }));
+    PLAN.stops = st;
+    PLAN.name = (st.length >= 2 ? st[0].n + ' → ' + st[st.length - 1].n : 'Rota') + ' · ' + new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
+    return PLAN;
+  }
+  $('#planSave').onclick = () => { if (!rLast) { toast('Önce rotayı oluştur.'); return; } const p = planNow(); savePlan(p); toast('✅ Rota kaydedildi: ' + p.name); };
   $('#planSend').onclick = () => {
     if (!S.room) { toast('Göndermek için önce odaya gir.'); return; }
-    if (!PLAN.stops.length) { toast('Önce durak ekle.'); return; }
+    if (!rLast) { toast('Önce rotayı oluştur.'); return; }
     const p = planNow(); savePlan(p); publish({ t: 'route', name: p.name, stops: p.stops }); toast('📡 Rota odadakilere gönderildi.');
   };
-  $('#planShare').onclick = () => { if (!PLAN.stops.length) { toast('Önce durak ekle.'); return; } const p = planNow(); savePlan(p); shareText(planShareText(p)); };
+  $('#planShare').onclick = () => { if (!rLast) { toast('Önce rotayı oluştur.'); return; } const p = planNow(); savePlan(p); shareText(planShareText(p)); };
   $('#planImport').onclick = () => {
     sheet('<h3>📋 Rota kodu ekle</h3><p>Arkadaşının gönderdiği MotoLink rota mesajını yapıştır.</p><textarea id="plTxt" class="input inset" style="height:120px;padding:10px" placeholder="MLR1:… kodu ya da mesajın tamamı"></textarea><button id="plOk" class="mbtn amber">Ekle</button><button id="plNo" class="mbtn raised">Vazgeç</button>', (b) => {
       b.querySelector('#plNo').onclick = closeSheet;
@@ -1816,7 +1967,7 @@
     $('#plansList').innerHTML = l.length ? l.map((p, i) => '<div class="row raised rrow"><div class="tx"><b>' + esc(p.name) + '</b><small>' + p.stops.length + ' durak · ' + esc(p.stops[0].n) + ' → ' + esc(p.stops[p.stops.length - 1].n) + '</small>' +
       '<div class="acts"><button data-pe="' + i + '">🗺 Aç</button><button data-ps="' + i + '">📡 Odaya</button><button data-pc="' + i + '">📤</button><button class="del" data-pd="' + i + '">🗑</button></div></div></div>').join('')
       : '<div class="note" style="margin:0 2px">Henüz hazır rotan yok. Yukarıdan yeni rota hazırla ya da arkadaşının kodunu ekle.</div>';
-    $$('#plansList [data-pe]').forEach((b) => b.onclick = () => openPlan(plans()[+b.dataset.pe]));
+    $$('#plansList [data-pe]').forEach((b) => b.onclick = () => openPlan(plans()[+b.dataset.pe], 'routes'));
     $$('#plansList [data-ps]').forEach((b) => b.onclick = () => { const p = plans()[+b.dataset.ps]; if (!S.room) { toast('Göndermek için önce odaya gir.'); return; } publish({ t: 'route', name: p.name, stops: p.stops }); toast('📡 Rota odadakilere gönderildi.'); });
     $$('#plansList [data-pc]').forEach((b) => b.onclick = () => shareText(planShareText(plans()[+b.dataset.pc])));
     $$('#plansList [data-pd]').forEach((b) => b.onclick = () => { const l2 = plans(); l2.splice(+b.dataset.pd, 1); store.set('plans', l2); renderRoutes(); renderLcd(); });

@@ -92,18 +92,27 @@
 
     <!-- 1d · ROTA HAZIRLA -->
     <section id="p-plan" class="page">
-      <div class="subhead"><button class="back raised" id="planBack">‹ Rotalar</button><h3>Rota hazırla</h3></div>
-      <input id="planName" class="input inset" maxlength="40" placeholder="Rota adı (ör. Abant hafta sonu)">
-      <div class="searchrow"><input id="planQ" class="input inset" placeholder="Yer ara: şehir, adres, mekan"><button id="planGo" class="rbtn raised" aria-label="Ara">🔍</button></div>
-      <div id="planRes" class="list"></div>
-      <div id="planMap"></div>
-      <div class="small" style="margin:6px 2px">Haritaya dokunarak da durak ekleyebilirsin. Duraklar yazılma sırasıyla gidilir.</div>
-      <div class="lcdbox rec"><div class="g small" id="planTag">ROTA</div><div class="g title" id="planKm">Durak ekle</div><div class="gd" id="planSub">En az 2 durak gerekli</div></div>
-      <div id="planStops" class="list"></div>
-      <button id="planLoc" class="mbtn raised">📍 Konumumu durak olarak ekle</button>
-      <button id="planSave" class="mbtn amber">💾 Kaydet</button>
-      <button id="planSend" class="mbtn raised">📡 Odadakilere gönder</button>
-      <button id="planShare" class="mbtn raised">📤 Rota kodunu paylaş</button>
+      <div class="subhead"><button class="back raised" id="planBack">‹ Geri</button><h3>Rota oluştur</h3></div>
+      <div class="rbox raised">
+        <div id="rFields"></div>
+        <button id="rSwap" class="rswap raised" aria-label="Yer değiştir">⇅</button>
+        <button id="rAdd" class="radd">＋ Ara durak ekle</button>
+      </div>
+      <div id="rSug" class="rsug hidden"></div>
+      <button id="rGo" class="mbtn amber rgo">🧭 ROTA OLUŞTUR</button>
+      <div id="rResult" class="hidden">
+        <div id="planMap"></div>
+        <div class="lcdbox rec"><div class="g small" id="planTag">ROTA</div><div class="g title" id="planKm"></div><div class="gd" id="planSub"></div></div>
+        <div class="label">YOL ÜSTÜNDE HAVA (GEÇİŞ SAATİNDE)</div>
+        <div id="rWx" class="rwx"></div>
+        <div id="rWarn" class="rwarn"></div>
+        <div class="rbt">
+          <button id="rNav" class="raised">🧭<small>Navigasyon</small></button>
+          <button id="planSave" class="raised">💾<small>Kaydet</small></button>
+          <button id="planSend" class="raised">📡<small>Odaya</small></button>
+          <button id="planShare" class="raised">📤<small>Paylaş</small></button>
+        </div>
+      </div>
     </section>
 
     <!-- 2 · ODA -->
