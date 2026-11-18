@@ -671,8 +671,8 @@
   const chDriving = () => { const m = S.locs[S.id]; return !!m && Date.now() - m.at < 15000 && m.spd >= 40; };
   function chUnreadTotal() { return CH.unreadAll + Object.values(CH.unreadPriv).reduce((a, b) => a + b, 0); }
   function chBadge() {
-    const n = chUnreadTotal(), b = $('#chatBadge'); if (!b) return;
-    b.textContent = n; b.classList.toggle('hidden', n === 0);
+    const n = chUnreadTotal();
+    ['#chatBadge', '#chatBadge2'].forEach((s) => { const b = $(s); if (b) { b.textContent = n; b.classList.toggle('hidden', n === 0); } });
   }
   function chMarkRead() { if (CH.to == null) CH.unreadAll = 0; else delete CH.unreadPriv[CH.to]; chBadge(); }
   function chThread() {
@@ -851,7 +851,7 @@
   };
   function chOpen(to) { if (!S.room) return; CH.to = to || null; CH.open = true; $('#chat').classList.remove('hidden'); chMarkRead(); chRender(); }
   function chClose() { CH.open = false; const el = $('#chat'); el.classList.add('hidden'); el.classList.remove('kb'); el.style.height = ''; el.style.top = ''; try { $('#chatIn').blur(); } catch (e) {} }
-  function chClear() { try { $('#chatBanner').classList.add('hidden'); } catch (e) {} CH.msgs = []; CH.unreadAll = 0; CH.unreadPriv = {}; CH.seen.clear(); CH.to = null; chClose(); chBadge(); }
+  function chClear() { try { $('#people').classList.add('hidden'); } catch (e) {}  try { $('#chatBanner').classList.add('hidden'); } catch (e) {} CH.msgs = []; CH.unreadAll = 0; CH.unreadPriv = {}; CH.seen.clear(); CH.to = null; chClose(); chBadge(); }
   function chSend(text) {
     const x = String(text || '').trim().slice(0, 200); if (!x || !S.room) return false;
     const now = Date.now(); if (now - CH.last < 400) return false; CH.last = now;
@@ -995,11 +995,29 @@
   ptt.addEventListener('pointercancel', release);
   ptt.addEventListener('lostpointercapture', release);
   ptt.addEventListener('contextmenu', (e) => e.preventDefault());
+  // 1.4.5: Kişiler sayfasındaki ince Bas-konuş tuşu (büyük düğmeyle aynı davranış)
+  const ptt2 = $('#ptt2'); let holding2 = false;
+  ptt2.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    if (!S.room) return;
+    if (!S.room.canPlaybackAudio) { try { S.room.startAudio(); } catch (x) {} }
+    audioCtx();
+    if (S.open) { setMic(!S.micOn); return; }
+    holding2 = true;
+    try { ptt2.setPointerCapture(e.pointerId); } catch (x) {}
+    setMic(true); vibrate(25);
+  });
+  const release2 = () => { if (!holding2) return; holding2 = false; setMic(false); };
+  ptt2.addEventListener('pointerup', release2);
+  ptt2.addEventListener('pointercancel', release2);
+  ptt2.addEventListener('lostpointercapture', release2);
+  ptt2.addEventListener('contextmenu', (e) => e.preventDefault());
   $('#audioUnlock').onclick = () => { if (S.room) S.room.startAudio().catch(() => {}); audioCtx(); $('#audioUnlock').classList.add('hidden'); };
 
   function renderPtt() {
     const sil = S.room && S.silenced.has(S.id);
     ptt.classList.toggle('on', S.micOn);
+    try { $('#ptt2').classList.toggle('on', S.micOn); } catch (e) {}
     ptt.classList.toggle('live', S.live);
     ptt.classList.toggle('sil', !!sil);
     let t, h, ic = S.micOn ? '🎙' : '🔇';
@@ -1011,6 +1029,7 @@
     else if (S.micOn) { t = 'ELLER SERBEST'; h = 'kapatmak için dokun'; }
     else { t = 'MİKROFON KAPALI'; h = 'açmak için dokun'; }
     $('#pttIcon').textContent = ic; $('#pttTitle').textContent = t; $('#pttHint').textContent = h;
+    try { $('#ptt2Icon').textContent = ic; $('#ptt2Title').textContent = t; $('#ptt2Hint').textContent = h; } catch (e) {}
     fit($('#pttTitle'), 17, 11);
     const ring = $('#ring');
     ring.classList.toggle('glow', S.micOn);
@@ -1119,6 +1138,11 @@
         '<span class="sics">' + ic + '</span></button>';
     }).join('');
     $$('#riders .rider').forEach((el) => el.addEventListener('click', () => riderMenu(el.dataset.id)));
+    // 1.4.5: alttaki Odadakiler tuşu (küçük yuvarlak resimler) + Kişiler sayfası başlığı
+    $('#pAvs').innerHTML = list.slice(0, 4).map((x) => '<i style="background:' + colorOf(x.id) + '">' + esc(initial(x.name)) + '</i>').join('');
+    $('#pplTitle').textContent = 'Odadaki kişiler (' + list.length + ')';
+    $('#pplCount').textContent = '👥 ' + list.length;
+    $('#pplInfo').textContent = '📞 ' + list.filter((x) => S.onCall.has(x.id)).length + ' TELEFONDA';
   }
 
   $('#qrBtn').onclick = () => {
@@ -1131,24 +1155,56 @@
   };
   // ⤴ Paylaş: küçük menü (davet et / fotoğraf gönder / fotoğraflar)
   // 1.4.0: 📣 Herkesi çağır: odayı kaydetmiş herkese "X herkesi ... odasına çağırıyor" bildirimi (sunucu 2 dakikada bir izin verir)
+  // 1.4.5: 📣 Odaya çağır: HERKESİ ya da SEÇTİKLERİMİ (gece kimse rahatsız olmasın)
+  async function doSummon(to) {
+    try {
+      const body = { action: 'summon', room: S.code, identity: S.id, name: S.name || 'Bir sürücü' };
+      if (to) body.to = to;
+      const r = await api(body);
+      if (r && r.sent === 'BEKLE') toast('Az önce çağırdın. 2 dakika sonra tekrar çağırabilirsin.');
+      else if (r && String(r.sent || '').indexOf('CIHAZ_YOK') === 0) toast('Çağrılacak kayıtlı telefon bulunamadı.');
+      else toast(to ? '📣 Seçtiğin ' + to.length + ' kişiye çağrı gönderildi.' : '📣 Çağrı gönderildi.');
+    } catch (e) { toast(String(e.message || e)); }
+  }
+  function seenText(t) {
+    if (!t) return 'bilinmiyor';
+    const d = Math.floor((Date.now() - t) / 86400000);
+    return d <= 0 ? 'bugün' : d === 1 ? 'dün' : d < 7 ? d + ' gün önce' : d < 30 ? Math.floor(d / 7) + ' hafta önce' : Math.floor(d / 30) + ' ay önce';
+  }
+  async function summonPick() {
+    sheet('<h3>👤 Kimi çağıralım?</h3><p class="small">Bu odanın üyeleri (şu an odada olmayanlar)</p><div id="smList" class="smlist"><p>Yükleniyor…</p></div>' +
+      '<button class="mbtn danger" id="smGo" disabled>📣 SEÇİLENLERİ ÇAĞIR (0)</button><button class="mbtn raised" id="smNo">Vazgeç</button>', async (b) => {
+      b.querySelector('#smNo').onclick = closeSheet;
+      const chosen = new Set();
+      const go = b.querySelector('#smGo');
+      const upd = () => { go.disabled = !chosen.size; go.textContent = '📣 SEÇİLENLERİ ÇAĞIR (' + chosen.size + ')'; };
+      go.onclick = () => { closeSheet(); doSummon(Array.from(chosen)); };
+      try {
+        const r = await api({ action: 'roster', room: S.code, identity: S.id });
+        const here = new Set(riders().map((x) => x.id));
+        const list = (r.members || []).filter((m) => !here.has(m.id));
+        const box = b.querySelector('#smList');
+        box.innerHTML = list.length ? list.map((m) => '<label class="sosrow smrow"><input type="checkbox" data-id="' + esc(m.id) + '"><span><b>' + esc(m.name) + '</b><small>son girişi: ' + seenText(m.seen) + '</small></span></label>').join('')
+          : '<p>Henüz listede kimse yok. Üyeler bu sürümden sonra odaya bir kez girince listeye eklenir.</p>';
+        box.querySelectorAll('input').forEach((i) => i.onchange = () => { if (i.checked) chosen.add(i.dataset.id); else chosen.delete(i.dataset.id); upd(); });
+      } catch (e) { b.querySelector('#smList').innerHTML = '<p>Liste alınamadı: ' + esc(e.message || e) + '</p>'; }
+    });
+  }
   $('#summonBtn').onclick = () => {
     if (!S.room) return;
-    const rn = S.title || S.code;
-    sheet('<h3 style="color:#ff5a5a">📣 Herkesi odaya çağır?</h3><p>Bu odayı kaydetmiş ama şu an içeride olmayan herkese bildirim gider:</p>' +
-      '<p style="color:#fff;font-weight:700">\u201c' + esc(S.name || 'Bir sürücü') + ' herkesi ' + esc(rn) + ' odasına çağırıyor\u201d</p>' +
-      '<button class="mbtn danger" id="smYes">📣 EVET, ÇAĞIR</button><button class="mbtn raised" id="smNo">Vazgeç</button>' +
-      '<p class="small">Aynı kişi 2 dakikada bir çağırabilir.</p>', (b) => {
+    sheet('<h3 style="color:#ff5a5a">📣 Odaya çağır</h3><p>Kimi çağırmak istiyorsun?</p>' +
+      '<button class="mbtn danger smopt" id="smAll">📣 HERKESİ ÇAĞIR<br><small>Odayı kaydetmiş herkese bildirim gider</small></button>' +
+      '<button class="mbtn smopt" id="smSel" style="background:#fff;color:#c0181d;border:2px solid #ff4a4a;font-weight:900">👤 SEÇTİKLERİMİ ÇAĞIR<br><small>Sadece seçtiğin kişiler (gece rahatsız etmez)</small></button>' +
+      '<button class="mbtn raised" id="smNo">Vazgeç</button><p class="small">Aynı kişi 2 dakikada bir çağırabilir.</p>', (b) => {
       b.querySelector('#smNo').onclick = closeSheet;
-      b.querySelector('#smYes').onclick = async () => {
-        closeSheet();
-        try {
-          const r = await api({ action: 'summon', room: S.code, identity: S.id, name: S.name || 'Bir sürücü' });
-          if (r && r.sent === 'BEKLE') toast('Az önce çağırdın. 2 dakika sonra tekrar çağırabilirsin.');
-          else toast('📣 Çağrı gönderildi.');
-        } catch (e) { toast(String(e.message || e)); }
-      };
+      b.querySelector('#smAll').onclick = () => { closeSheet(); doSummon(null); };
+      b.querySelector('#smSel').onclick = () => { closeSheet(); setTimeout(summonPick, 80); };
     });
   };
+  // 1.4.5: Kişiler sayfası (Android gibi)
+  $('#peopleBtn').onclick = () => { if (!S.room) return; $('#people').classList.remove('hidden'); renderRoom(); };
+  $('#pplBack').onclick = () => $('#people').classList.add('hidden');
+  $('#chatBtn2').onclick = () => chOpen(null);
   $('#shareBtn').onclick = () => {
     if (!S.room) return;
     sheet('<h3>Paylaş</h3><button class="mbtn raised" id="shInv">👥 Arkadaşını davet et</button>' +

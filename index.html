@@ -164,8 +164,12 @@
         <div class="rscroll">
         <div class="pbar hidden"><button id="photoBtn" class="mbtn raised">📷</button><button id="galleryBtn" class="mbtn raised">🖼</button></div>
         <div id="photoStrip" class="pstrip hidden"></div>
-        <div class="label lblrow"><span>ODADAKİLER</span><button id="summonBtn" class="summon">📣 HERKESİ ÇAĞIR</button></div>
-        <div id="riders" class="list"></div>
+        </div>
+        <!-- 1.4.5: Android'deki gibi altta Odadakiler tuşu + 📣 + 💬 -->
+        <div class="pbar2">
+          <button id="peopleBtn" class="pbtn raised"><span class="pic">👥</span><b>Odadakiler</b><span id="pAvs" class="avs"></span><span class="pgo">›</span></button>
+          <button id="summonBtn" class="sumbig" aria-label="Odaya çağır">📣</button>
+          <button id="chatBtn2" class="chat2 raised" aria-label="Mesajlar">💬<i id="chatBadge2" class="cbadge hidden">0</i></button>
         </div>
       </div>
     </section>
@@ -272,6 +276,18 @@
 <div id="sosMine" class="sosalert sosmine hidden"></div>
 <div id="toast" class="toast hidden"></div>
 <div id="recBanner" class="cbanner red hidden"><span class="cbi">⏺</span><div class="cbt"><b id="rbTitle"></b><span id="rbText"></span></div></div>
+<div id="people" class="chatwrap hidden">
+  <div class="chead"><button id="pplBack" class="back amber">‹ Odaya dön</button><b id="pplTitle">Odadaki kişiler</b></div>
+  <div class="bezel-lcd"><div class="lcdx"><div class="lrow"><span id="pplInfo">📞 0 TELEFONDA</span><span id="pplCount">👥 0</span></div></div></div>
+  <button id="ptt2" class="ptt2"><span id="ptt2Icon">🎙</span> <b id="ptt2Title">BAS KONUŞ</b> <small id="ptt2Hint">basılı tut</small></button>
+  <div class="panel inset modes">
+    <button class="sw" data-mode="ptt">Bas-konuş</button>
+    <button class="sw" data-mode="open">Eller Serbest</button>
+    <button class="sw" data-mode="live">Sürekli Açık</button>
+  </div>
+  <div id="riders" class="list pplist"></div>
+  <p class="small">Dokun: menü (✉ mesaj yaz · arkadaş ekle · yönetici işlemleri)</p>
+</div>
 <div id="chatBanner" class="cbanner hidden"><span class="cbi" id="cbIcon">💬</span><div class="cbt"><b id="cbName"></b><span id="cbText"></span></div><span class="cbg">›</span></div>
 <div id="pcard" class="pcard hidden"></div>
 <div id="busy" class="busy hidden"><div class="spin"></div><span id="busyText">Bağlanıyor…</span></div>
