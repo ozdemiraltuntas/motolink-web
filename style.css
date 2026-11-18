@@ -449,3 +449,12 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 .csending .bar i{display:block;height:100%;background:#FFB04A}
 .chatwrap.kb{padding-bottom:8px}
 .chatwrap.kb .cquick{display:none}
+
+/* 1.4.1: yönetici oda kaydı + mesaj bildir/engelle */
+.lrec{color:#ff4a4a;font-weight:900;animation:recbl 1.2s steps(2) infinite}
+@keyframes recbl{50%{opacity:.25}}
+.lreckey{font:inherit;font-weight:900;font-size:11px;color:#ff4a4a;background:rgba(255,74,74,.10);border:1.5px solid #ff4a4a;border-radius:7px;padding:2px 8px;letter-spacing:.5px}
+.lreckey.on{background:#ff4a4a;color:#fff}
+.cbanner.red{background:linear-gradient(#ff6b6b,#c0181d);border-color:#ffd0d0;z-index:1510}
+.cbanner.red .cbt b{color:#fff}.cbanner.red .cbt span{-webkit-line-clamp:3;color:#ffeaea}
+.cb.o{cursor:pointer}

@@ -131,10 +131,10 @@
         <input type="file" id="photoIn" accept="image/*" hidden>
 
         <div class="bezel-lcd rlcd"><div class="lcdx">
-          <div class="lrow"><span id="rlStatus">ODADASIN</span><span id="rlClock">--:--</span></div>
+          <div class="lrow"><span id="rlStatus">ODADASIN</span><span id="rlRec" class="lrec hidden">● KAYIT</span><span id="rlClock">--:--</span></div>
           <h1 id="rlName" class="greet">ODA</h1>
           <div id="talking" class="tkl"><span id="talkingText">Kimse konuşmuyor</span></div>
-          <div class="lrow foot"><span id="rlCount">0 SÜRÜCÜ</span><span id="rlMode">BAS-KONUŞ</span></div>
+          <div class="lrow foot"><span id="rlCount">0 SÜRÜCÜ</span><button id="roomRecBtn" class="lreckey hidden" aria-label="Konuşmaları kaydet">⏺ KAYIT</button><span id="rlMode">BAS-KONUŞ</span></div>
         </div></div>
 
         <div class="panel inset modes">
@@ -270,6 +270,7 @@
 <div id="sosAlert" class="sosalert hidden"></div>
 <div id="sosMine" class="sosalert sosmine hidden"></div>
 <div id="toast" class="toast hidden"></div>
+<div id="recBanner" class="cbanner red hidden"><span class="cbi">⏺</span><div class="cbt"><b id="rbTitle"></b><span id="rbText"></span></div></div>
 <div id="chatBanner" class="cbanner hidden"><span class="cbi" id="cbIcon">💬</span><div class="cbt"><b id="cbName"></b><span id="cbText"></span></div><span class="cbg">›</span></div>
 <div id="pcard" class="pcard hidden"></div>
 <div id="busy" class="busy hidden"><div class="spin"></div><span id="busyText">Bağlanıyor…</span></div>

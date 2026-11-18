@@ -536,8 +536,9 @@
     if (r) {
       finalTick();
       try { if (S.locMode !== 'off') publish({ t: 'loc_off' }); } catch (e) {}
+      try { if (RK.mr) publish({ t: 'rec', on: false, by: RK.by }); } catch (e) {}
       S.room = null;
-      try { chClear(); } catch (e) {}
+      try { chClear(); roomRecClear(); } catch (e) {}
       try { await r.disconnect(); } catch (e) {}
     }
     stopTicks(); stopGeo(); keepAwake(false);
@@ -554,6 +555,7 @@
     room.on(E.TrackSubscribed, (track) => {
       if (track.kind !== 'audio') return;
       const el = track.attach();
+      if (RK.mr) roomRecAddTrack(track.mediaStreamTrack);   // 1.4.1: kayıt sürerken yeni gelen ses de kayda girsin
       el.classList.add('lk'); el.setAttribute('playsinline', ''); el.style.display = 'none';
       document.body.appendChild(el);
     });
@@ -565,12 +567,14 @@
         if (S.lockedIds.size || S.silenced.size || S.roomLock) publishLocks();
       }
       if (S.mySos) publishSos(false);
+      if (RK.mr) publish({ t: 'rec', on: true, by: RK.by });   // 1.4.1: yeni gelen de uyarılsın
       if (S.myLoc && S.locMode !== 'off') sendLoc(true);
       if (p.name) toast(dispName(p.identity, p.name) + ' odaya katıldı');
       renderRoom(); renderMapRiders();
     });
     room.on(E.ParticipantDisconnected, (p) => {
       delete S.locs[p.identity]; delete S.modes[p.identity]; S.onCall.delete(p.identity);
+      if (RK.byId === p.identity && !RK.mr) { RK.by = null; RK.byId = null; roomRecShow('⏹ Kayıt durduruldu', ''); roomRecUi(); }
       renderRoom(); renderMapRiders();
     });
     room.on(E.ActiveSpeakersChanged, () => renderRoom());
@@ -581,7 +585,7 @@
     room.on(E.Disconnected, (reason) => {
       if (S.room !== room) return;
       S.room = null;
-      try { chClear(); } catch (e) {}
+      try { chClear(); roomRecClear(); } catch (e) {}
       stopTicks(); keepAwake(false);
       $$('audio.lk').forEach((a) => a.remove());
       S.micOn = false;
@@ -651,6 +655,7 @@
       case 'img': if (id) onPhotoChunk(j, id, name); break;
       case 'sos': onSos(j, id, name); break;
       case 'chat': if (id) onChat(j, id, name); break;
+      case 'rec': if (id) onRec(j, id, name); break;
       case 'music': onMusic(j); break;
       case 'adm': case 'locks': case 'mod': case 'nick': case 'apr': onAdminMsg(j, id, name); break;
       default: break;
@@ -671,6 +676,29 @@
   function chThread() {
     return CH.msgs.filter((m) => CH.to == null ? m.to == null : (m.to != null && ((m.me && m.to === CH.to) || (!m.me && m.from === CH.to))));
   }
+  // 1.4.1: başkasının mesajına dokun: Bildir / Engelle (Google Play kuralı)
+  function chMsgMenu(m) {
+    if (!m || m.me) return;
+    sheet('<h3>' + esc(m.name) + ' — mesaj</h3><p style="color:#fff">\u201c' + esc(m.x) + '\u201d</p>' +
+      '<p class="small">Uygunsuz mu (hakaret, taciz, şiddet, reklam)? Bildirim geliştiriciye gider. Engellersen bu kişinin mesajları ve fotoğrafları sana gösterilmez.</p>' +
+      '<button class="mbtn raised" id="cmRep">⚠ Bildir</button><button class="mbtn danger" id="cmBlk">⛔ Engelle</button><button class="mbtn raised" id="cmNo">Kapat</button>', (b) => {
+      b.querySelector('#cmNo').onclick = closeSheet;
+      b.querySelector('#cmRep').onclick = async () => {
+        closeSheet();
+        try { await api({ action: 'report', room: S.code || 'PUSH', identity: S.id, target: m.from, targetName: m.name, kind: 'mesaj', reason: String(m.x).slice(0, 200) }); toast('Bildirimin alındı, teşekkürler.'); }
+        catch (e) { toast('Bildirim gönderilemedi: ' + e.message); }
+      };
+      b.querySelector('#cmBlk').onclick = () => {
+        const l = store.get('photoBlocked', []) || []; if (!l.includes(m.from)) l.push(m.from); store.set('photoBlocked', l);
+        CH.msgs = CH.msgs.filter((x) => x.from !== m.from); delete CH.unreadPriv[m.from];
+        PH.list.filter((x) => x.from === m.from).forEach((x) => URL.revokeObjectURL(x.url));
+        PH.list = PH.list.filter((x) => x.from !== m.from);
+        if (CH.to === m.from) CH.to = null;
+        closeSheet(); chBadge(); chRender();
+        toast(m.name + ' engellendi; mesajları ve fotoğrafları artık gösterilmeyecek.');
+      };
+    });
+  }
   function chRender() {
     if (!CH.open) return;
     const who = CH.to ? (riders().find((x) => x.id === CH.to) || {}).name || 'Sürücü' : null;
@@ -687,9 +715,10 @@
     $('#chatPhoto').classList.toggle('hidden', !!CH.to);
     box.innerHTML = th.length ? th.map((m) => m.ph ?
       '<div class="cb ph ' + (m.me ? 'me' : 'o') + '">' + (m.me ? '' : '<small>' + esc(m.name) + '</small>') + '<img src="' + m.ph.url + '" data-ph="' + esc(m.ph.id) + '" alt="Fotoğraf"><time>' + new Date(m.at).toTimeString().slice(0, 5) + '</time></div>' :
-      '<div class="cb ' + (m.me ? 'me' : 'o') + '">' + (m.me ? '' : '<small>' + esc(m.name) + (m.to ? ' (özel)' : '') + '</small>') + esc(m.x) +
+      '<div class="cb ' + (m.me ? 'me' : 'o') + '"' + (m.me ? '' : ' data-mid="' + esc(m.id) + '"') + '>' + (m.me ? '' : '<small>' + esc(m.name) + (m.to ? ' (özel)' : '') + '</small>') + esc(m.x) +
       '<time>' + new Date(m.at).toTimeString().slice(0, 5) + '</time></div>').join('') :
-      '<div class="empty">' + (CH.to ? 'Bu kişiyle henüz yazışmadınız.' : 'Henüz mesaj yok. Aşağıdaki hazır mesajlarla başla.') + '</div>';
+      '<div class="empty">' + (CH.to ? 'Bu kişiyle henüz yazışmadınız.' : 'Henüz mesaj yok. Aşağıdaki hazır mesajlarla başla.<br><br>Uygunsuz bir mesaja dokunarak bildirebilir ya da kişiyi engelleyebilirsin.') + '</div>';
+    box.querySelectorAll('[data-mid]').forEach((el) => { el.onclick = () => chMsgMenu(CH.msgs.find((m) => m.id === el.dataset.mid)); });
     box.querySelectorAll('img[data-ph]').forEach((im) => { im.onclick = () => viewPhoto(PH.list.find((p) => p.id === im.dataset.ph)); im.onload = () => { box.scrollTop = box.scrollHeight; }; });
     box.scrollTop = box.scrollHeight;
     const lock = chDriving();
@@ -707,6 +736,109 @@
     const box = $('#chatMsgs'); box.scrollTop = box.scrollHeight;
   }
   if (window.visualViewport) { window.visualViewport.addEventListener('resize', chFit); window.visualViewport.addEventListener('scroll', chFit); }
+  // ---------------------------------------------------------------- 1.4.1: yönetici oda kaydı
+  // Kayıt SADECE yöneticinin telefonuna iner. Odaya duyuru gider, herkesin LCD'sinde ● KAYIT yanar.
+  const RK = { mr: null, ctx: null, dest: null, chunks: [], t0: 0, timer: null, tracks: new Set(), by: null, byId: null };
+  function roomRecShow(title, text) {
+    const b = $('#recBanner'); if (!b) return;
+    $('#rbTitle').textContent = title; $('#rbText').textContent = text || '';
+    b.classList.remove('hidden'); b.onclick = () => b.classList.add('hidden');
+    try { navigator.vibrate && navigator.vibrate([120, 80, 120]); } catch (e) {}
+    clearTimeout(RK.bt); RK.bt = setTimeout(() => b.classList.add('hidden'), 9000);
+  }
+  function roomRecUi() {
+    const on = !!RK.by;
+    $('#rlRec').classList.toggle('hidden', !on);
+    const k = $('#roomRecBtn'); if (!k) return;
+    k.classList.toggle('hidden', !(S.room && amAdmin()));
+    k.classList.toggle('on', !!RK.mr);
+    if (RK.mr) { const s = Math.floor((Date.now() - RK.t0) / 1000); k.textContent = '⏹ ' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+    else k.textContent = '⏺ KAYIT';
+  }
+  function roomRecAddTrack(mst) {
+    if (!RK.mr || !mst || RK.tracks.has(mst.id)) return;
+    try { RK.ctx.createMediaStreamSource(new MediaStream([mst])).connect(RK.dest); RK.tracks.add(mst.id); } catch (e) {}
+  }
+  function roomRecScan() {
+    if (!RK.mr || !S.room) return;
+    try { S.room.remoteParticipants.forEach((p) => p.audioTrackPublications.forEach((pub) => { if (pub.track) roomRecAddTrack(pub.track.mediaStreamTrack); })); } catch (e) {}
+    try { const lp = S.room.localParticipant.getTrackPublication(LK.Track.Source.Microphone); if (lp && lp.track) roomRecAddTrack(lp.track.mediaStreamTrack); } catch (e) {}
+  }
+  function roomRecStart() {
+    if (!S.room || !amAdmin() || RK.mr) return;
+    if (!window.MediaRecorder) { toast('Bu tarayıcı ses kaydını desteklemiyor.'); return; }
+    try {
+      RK.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      RK.dest = RK.ctx.createMediaStreamDestination();
+      try { RK.ctx.resume(); } catch (e) {}
+      // sessiz taşıyıcı: odada ses olmasa da kayıt akışı hiç kesilmesin
+      try { const g = RK.ctx.createGain(); g.gain.value = 0; const o = RK.ctx.createOscillator(); o.connect(g); g.connect(RK.dest); o.start(); } catch (e) {}
+      const mime = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t)) || '';
+      RK.mr = new MediaRecorder(RK.dest.stream, mime ? { mimeType: mime, audioBitsPerSecond: 48000 } : undefined);
+      RK.chunks = []; RK.tracks = new Set(); RK.t0 = Date.now();
+      RK.mr.ondataavailable = (e) => { if (e.data && e.data.size) RK.chunks.push(e.data); };
+      RK.mr.onstop = roomRecSave;
+      RK.mr.start(5000);
+      roomRecScan();
+      RK.timer = setInterval(() => { roomRecScan(); roomRecUi(); }, 1000);
+      RK.by = S.name || 'Yönetici'; RK.byId = S.id;
+      publish({ t: 'rec', on: true, by: RK.by });
+      roomRecShow('⏺ KAYIT BAŞLADI', 'Bu odadaki konuşmalar senin tarafından kaydediliyor. Odadakilere duyuruldu. Ekranı kapatırsan kayıt da durur.');
+      roomRecUi();
+    } catch (e) { RK.mr = null; toast('Kayıt başlatılamadı: ' + (e.message || e)); }
+  }
+  function roomRecStop(silent) {
+    if (!RK.mr) return;
+    try { if (!silent) publish({ t: 'rec', on: false, by: RK.by }); } catch (e) {}
+    clearInterval(RK.timer);
+    try { RK.mr.stop(); } catch (e) { roomRecSave(); }
+    if (RK.byId === S.id) { RK.by = null; RK.byId = null; }
+    roomRecUi();
+  }
+  function roomRecSave() {
+    const mr = RK.mr; RK.mr = null;
+    try { RK.ctx && RK.ctx.close(); } catch (e) {}
+    if (!RK.chunks.length) { toast('Kayıt boş kaldı (ses alınamadı).'); roomRecUi(); return; }
+    const type = (mr && mr.mimeType) || 'audio/webm';
+    const ext = type.includes('mp4') ? 'm4a' : 'webm';
+    const d = new Date(), p2 = (n) => String(n).padStart(2, '0');
+    const name = 'MotoLink_' + String(S.title || S.code || 'Oda').replace(/[^\wÇĞİÖŞÜçğıöşü -]/g, '').slice(0, 40) + '_' + d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + '_' + p2(d.getHours()) + '-' + p2(d.getMinutes()) + '.' + ext;
+    const blob = new Blob(RK.chunks, { type }); RK.chunks = [];
+    const file = new File([blob], name, { type });
+    const dl = () => { const u = URL.createObjectURL(blob); const a2 = document.createElement('a'); a2.href = u; a2.download = name; document.body.appendChild(a2); a2.click(); setTimeout(() => { URL.revokeObjectURL(u); a2.remove(); }, 4000); };
+    sheet('<h3>⏺ Kayıt hazır</h3><p>' + esc(name) + '</p><p class="small">Dosya sadece bu telefonda. Kaydet ya da paylaş.</p>' +
+      '<button class="mbtn amber" id="rsSave">💾 Kaydet / Paylaş</button><button class="mbtn raised" id="rsNo">Kapat</button>', (b) => {
+      b.querySelector('#rsNo').onclick = closeSheet;
+      b.querySelector('#rsSave').onclick = async () => {
+        try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); closeSheet(); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+        dl(); closeSheet();
+      };
+    });
+    roomRecUi();
+  }
+  function onRec(j, id, name) {
+    const by = String(j.by || name || 'Bir yönetici');
+    if (j.on) {
+      const again = RK.byId === id; RK.byId = id; RK.by = by;
+      if (!again) roomRecShow('⏺ KAYIT BAŞLADI', 'Bu odadaki konuşmalar ' + by + ' tarafından kayıt altına alınmaktadır. İstemiyorsan odadan ayrılabilirsin.');
+    } else if (RK.byId === id) { RK.by = null; RK.byId = null; roomRecShow('⏹ Kayıt durduruldu', by); }
+    roomRecUi();
+  }
+  function roomRecClear() { roomRecStop(true); RK.by = null; RK.byId = null; try { $('#recBanner').classList.add('hidden'); } catch (e) {} roomRecUi(); }
+  $('#roomRecBtn').onclick = () => {
+    if (RK.mr) {
+      sheet('<h3>⏹ Kaydı durdur?</h3><p>Kayıt durur, dosya telefonuna iner. Odadakilere "Kayıt durduruldu" duyurulur.</p><button class="mbtn danger" id="rcYes">DURDUR</button><button class="mbtn raised" id="rcNo">Devam et</button>', (b) => {
+        b.querySelector('#rcNo').onclick = closeSheet; b.querySelector('#rcYes').onclick = () => { closeSheet(); roomRecStop(false); };
+      });
+      return;
+    }
+    sheet('<h3 style="color:#ff5a5a">⏺ Konuşmalar kaydedilsin mi?</h3><p>Odadaki herkese şu duyuru gider ve kayıt sürdükçe herkesin ekranında <b style="color:#ff5a5a">● KAYIT</b> görünür:</p>' +
+      '<p style="color:#fff;font-weight:700">\u201cBu odadaki konuşmalar ' + esc(S.name || 'yönetici') + ' tarafından kayıt altına alınmaktadır.\u201d</p>' +
+      '<p class="small">Kayıt sadece senin telefonuna iner, sunucuya gönderilmez. Katılımcıları bilgilendirmek ve kaydı yasalara uygun kullanmak (KVKK) kaydı yapan yöneticinin sorumluluğundadır. Ekran kapanırsa kayıt da durur.</p>' +
+      '<button class="mbtn danger" id="rcYes">⏺ ANLADIM, KAYDI BAŞLAT</button><button class="mbtn raised" id="rcNo">Vazgeç</button>', (b) => {
+      b.querySelector('#rcNo').onclick = closeSheet; b.querySelector('#rcYes').onclick = () => { closeSheet(); roomRecStart(); };
+    });
+  };
   function chOpen(to) { if (!S.room) return; CH.to = to || null; CH.open = true; $('#chat').classList.remove('hidden'); chMarkRead(); chRender(); }
   function chClose() { CH.open = false; const el = $('#chat'); el.classList.add('hidden'); el.classList.remove('kb'); el.style.height = ''; el.style.top = ''; try { $('#chatIn').blur(); } catch (e) {} }
   function chClear() { try { $('#chatBanner').classList.add('hidden'); } catch (e) {} CH.msgs = []; CH.unreadAll = 0; CH.unreadPriv = {}; CH.seen.clear(); CH.to = null; chClose(); chBadge(); }
@@ -740,6 +872,7 @@
     clearTimeout(cbT); cbT = setTimeout(() => b.classList.add('hidden'), 6000);
   }
   function onChat(j, from, name) {
+    if (photoBlocked(from)) return;              // 1.4.1: engellenen kişi
     const to = j.to ? String(j.to) : null;
     if (to && to !== S.id) return;               // başkasına özel
     const i = String(j.i || ''); if (!i || CH.seen.has(i)) return;
@@ -948,6 +1081,7 @@
     } catch (e) {}
     $('#rSub').textContent = list.length + ' / ' + ((S.cap === undefined ? CFG.MAX_RIDERS : S.cap) > 0 ? (S.cap === undefined ? CFG.MAX_RIDERS : S.cap) : '∞') + ' sürücü' + (S.permanent ? ' · kalıcı oda' : '') + (S.title !== S.code ? ' · ' + S.code : '') + (S.locked ? ' · 🔒' : '');
     $('#adminBtn').classList.toggle('hidden', !amAdmin());
+    try { roomRecUi(); } catch (e) {}
     const cls = { ptt: 'c-green', open: 'c-orange', live: 'c-red' };
     $$('.modes .sw').forEach((b) => { b.className = 'sw ' + cls[b.dataset.mode] + (b.dataset.mode === currentMode() ? ' on' : ''); });
     const talking = list.filter((x) => x.speaking).map((x) => x.me ? 'Sen' : x.name);
