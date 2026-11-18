@@ -47,7 +47,7 @@
     connecting: false, wantRoom: null, kicked: false,
     micOn: false, open: false, live: false,
     owner: '', admins: new Set(), lockedIds: new Set(), silenced: new Set(), roomLock: false,
-    modes: {}, onCall: new Set(), locs: {}, myLoc: null,
+    modes: {}, onCall: new Set(), callInfo: {}, locs: {}, myLoc: null,
     locMode: store.get('locMode', 'off'), watchId: null, lastLocSent: 0,
     mySos: (() => { const m = store.get('mySos', null); return m && m.at && Date.now() - m.at < 12 * 3600e3 ? m : null; })(), lastPing: {},
     nicks: {}, approval: false, reqTimer: null, seenReq: new Set(), liveSince: 0,
@@ -458,7 +458,7 @@
     S.owner = acc.owner || ''; S.admins = new Set(acc.admins || []);
     S.nicks = acc.nicks || {}; S.approval = !!(info.approval);
     S.lockedIds = new Set(); S.silenced = new Set(); S.roomLock = false;
-    S.modes = {}; S.onCall = new Set(); S.locs = {};
+    S.modes = {}; S.onCall = new Set(); S.callInfo = {}; S.locs = {};
     S.open = false; S.live = false; S.micOn = false;
     S.wantRoom = { code, pw: usePw };
     rememberRoom(code, S.title, S.locked, usePw);
@@ -567,13 +567,13 @@
         if (S.lockedIds.size || S.silenced.size || S.roomLock) publishLocks();
       }
       if (S.mySos) publishSos(false);
-      if (RK.mr) publish({ t: 'rec', on: true, by: RK.by });   // 1.4.1: yeni gelen de uyarılsın
+      if (RK.mr) publish({ t: 'rec', on: true, by: RK.by, el: Math.floor((Date.now() - RK.t0) / 1000) });   // yeni gelen de uyarılsın, süreyi doğru görsün
       if (S.myLoc && S.locMode !== 'off') sendLoc(true);
       if (p.name) toast(dispName(p.identity, p.name) + ' odaya katıldı');
       renderRoom(); renderMapRiders();
     });
     room.on(E.ParticipantDisconnected, (p) => {
-      delete S.locs[p.identity]; delete S.modes[p.identity]; S.onCall.delete(p.identity);
+      delete S.locs[p.identity]; delete S.modes[p.identity]; S.onCall.delete(p.identity); delete S.callInfo[p.identity];
       if (RK.byId === p.identity && !RK.mr) { RK.by = null; RK.byId = null; roomRecShow('⏹ Kayıt durduruldu', ''); roomRecUi(); }
       renderRoom(); renderMapRiders();
     });
@@ -647,8 +647,10 @@
       case 'loc_off': if (id) { delete S.locs[id]; renderMapRiders(); } break;
       case 'call':
         if (!id) return;
-        if (j.on) { if (!S.onCall.has(id)) toast('📞 ' + name + ' telefon görüşmesinde, seni duyamıyor.'); S.onCall.add(id); }
-        else if (S.onCall.delete(id)) toast(name + ' telefon görüşmesini bitirdi.');
+        if (j.on) {
+          if (!S.onCall.has(id)) toast((j.k === 'media' ? '🎧 ' + name + ' müzik / medya dinliyor' : '📞 ' + name + ' telefon görüşmesinde') + ', seni duyamıyor.');
+          S.onCall.add(id); S.callInfo[id] = { media: j.k === 'media', at: Date.now() };
+        } else { delete S.callInfo[id]; if (S.onCall.delete(id)) toast(name + ' telefon görüşmesini bitirdi.'); }
         renderRoom(); break;
       case 'roominfo': if (j.name) { S.title = j.name; rememberRoom(S.code, j.name, S.locked, S.wantRoom && S.wantRoom.pw); renderRoom(); toast('Oda adı güncellendi: ' + j.name); } break;
       case 'ping': onPing(j, id, name); break;
@@ -749,11 +751,17 @@
   function roomRecUi() {
     const on = !!RK.by;
     $('#rlRec').classList.toggle('hidden', !on);
+    // 1.4.2: kayıt sürerken üst satır HERKESTE kırmızı şerit: ● KAYIT YAPILIYOR · Ad  12:34
+    const strip = $('#recStrip');
+    if (strip) {
+      strip.classList.toggle('hidden', !on);
+      $('#rlTop').classList.toggle('hidden', on);
+      if (on) { const s = Math.max(0, Math.floor((Date.now() - (RK.t0 || Date.now())) / 1000)); $('#rsName').textContent = '● KAYIT YAPILIYOR · ' + RK.by; $('#rsTime').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
+    }
     const k = $('#roomRecBtn'); if (!k) return;
     k.classList.toggle('hidden', !(S.room && amAdmin()));
     k.classList.toggle('on', !!RK.mr);
-    if (RK.mr) { const s = Math.floor((Date.now() - RK.t0) / 1000); k.textContent = '⏹ ' + String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
-    else k.textContent = '⏺ KAYIT';
+    k.textContent = RK.mr ? '⏹ DURDUR' : '⏺ KAYIT';
   }
   function roomRecAddTrack(mst) {
     if (!RK.mr || !mst || RK.tracks.has(mst.id)) return;
@@ -782,7 +790,7 @@
       roomRecScan();
       RK.timer = setInterval(() => { roomRecScan(); roomRecUi(); }, 1000);
       RK.by = S.name || 'Yönetici'; RK.byId = S.id;
-      publish({ t: 'rec', on: true, by: RK.by });
+      publish({ t: 'rec', on: true, by: RK.by, el: 0 });
       roomRecShow('⏺ KAYIT BAŞLADI', 'Bu odadaki konuşmalar senin tarafından kaydediliyor. Odadakilere duyuruldu. Ekranı kapatırsan kayıt da durur.');
       roomRecUi();
     } catch (e) { RK.mr = null; toast('Kayıt başlatılamadı: ' + (e.message || e)); }
@@ -819,12 +827,13 @@
   function onRec(j, id, name) {
     const by = String(j.by || name || 'Bir yönetici');
     if (j.on) {
-      const again = RK.byId === id; RK.byId = id; RK.by = by;
+      const again = RK.byId === id; RK.byId = id; RK.by = by; RK.t0 = Date.now() - (+j.el || 0) * 1000;
+      clearInterval(RK.vt); RK.vt = setInterval(roomRecUi, 1000);
       if (!again) roomRecShow('⏺ KAYIT BAŞLADI', 'Bu odadaki konuşmalar ' + by + ' tarafından kayıt altına alınmaktadır. İstemiyorsan odadan ayrılabilirsin.');
-    } else if (RK.byId === id) { RK.by = null; RK.byId = null; roomRecShow('⏹ Kayıt durduruldu', by); }
+    } else if (RK.byId === id) { RK.by = null; RK.byId = null; clearInterval(RK.vt); roomRecShow('⏹ Kayıt durduruldu', by); }
     roomRecUi();
   }
-  function roomRecClear() { roomRecStop(true); RK.by = null; RK.byId = null; try { $('#recBanner').classList.add('hidden'); } catch (e) {} roomRecUi(); }
+  function roomRecClear() { roomRecStop(true); clearInterval(RK.vt); RK.by = null; RK.byId = null; try { $('#recBanner').classList.add('hidden'); } catch (e) {} roomRecUi(); }
   $('#roomRecBtn').onclick = () => {
     if (RK.mr) {
       sheet('<h3>⏹ Kaydı durdur?</h3><p>Kayıt durur, dosya telefonuna iner. Odadakilere "Kayıt durduruldu" duyurulur.</p><button class="mbtn danger" id="rcYes">DURDUR</button><button class="mbtn raised" id="rcNo">Devam et</button>', (b) => {
@@ -1093,15 +1102,20 @@
       const line = [];
       if (!x.me && me && loc) line.push(fmtDist(dist(me, loc)));
       if (loc && loc.spd > 3) line.push(loc.spd + ' km/s');
-      if (S.onCall.has(x.id)) line.push('📞 telefonda');
       if (x.me) line.push('sen');
+      // 1.4.2: durum simgeleri sağdan sola: [📍 konum] ← [📞 telefon / 🎧 müzik-medya] ← [🎙 konuşuyor]; yazı yok
+      const ci = S.callInfo[x.id];
+      if (S.onCall.has(x.id) && ci && Date.now() - ci.at > 75000) { S.onCall.delete(x.id); delete S.callInfo[x.id]; }  // takılı kalmasın
+      const ic = (x.speaking ? '<i class="sic g" title="konuşuyor">🎙</i>' : '') +
+        (S.onCall.has(x.id) ? '<i class="sic a" title="' + (ci && ci.media ? 'müzik / medya' : 'telefonda') + '">' + (ci && ci.media ? '🎧' : '📞') + '</i>' : '') +
+        (loc ? '<i class="sic l" title="konum">📍</i>' : '');
       const badge = '<span class="badge ' + x.mode + '">' + (x.mode === 'ptt' ? 'Bas-konuş' : x.mode === 'open' ? 'Eller Serbest' : 'Sürekli Açık') + '</span>';
       const crown = isAdmin(x.id) ? (x.id === S.owner ? '👑' : '⭐') : '';
       const lock = S.silenced.has(x.id) ? '🔇' : (S.lockedIds.has(x.id) ? '🔒' : '');
       return '<button class="rider raised' + (x.speaking ? ' speak' : '') + '" data-id="' + esc(x.id) + '">' +
         '<div class="av" style="background:' + colorOf(x.id) + '">' + esc(initial(x.name)) + '</div>' +
         '<div class="tx"><div class="nm"><span class="n">' + esc(x.name) + '</span>' + crown + lock + badge + '</div><small>' + esc(line.join(' · ')) + '</small></div>' +
-        '<i class="dot' + (x.speaking ? ' on' : '') + '"></i></button>';
+        '<span class="sics">' + ic + '</span></button>';
     }).join('');
     $$('#riders .rider').forEach((el) => el.addEventListener('click', () => riderMenu(el.dataset.id)));
   }
@@ -1119,9 +1133,9 @@
   $('#summonBtn').onclick = () => {
     if (!S.room) return;
     const rn = S.title || S.code;
-    sheet('<h3 style="color:#FFB04A">📣 Herkesi odaya çağır?</h3><p>Bu odayı kaydetmiş ama şu an içeride olmayan herkese bildirim gider:</p>' +
+    sheet('<h3 style="color:#ff5a5a">📣 Herkesi odaya çağır?</h3><p>Bu odayı kaydetmiş ama şu an içeride olmayan herkese bildirim gider:</p>' +
       '<p style="color:#fff;font-weight:700">\u201c' + esc(S.name || 'Bir sürücü') + ' herkesi ' + esc(rn) + ' odasına çağırıyor\u201d</p>' +
-      '<button class="mbtn amber" id="smYes">📣 EVET, ÇAĞIR</button><button class="mbtn raised" id="smNo">Vazgeç</button>' +
+      '<button class="mbtn danger" id="smYes">📣 EVET, ÇAĞIR</button><button class="mbtn raised" id="smNo">Vazgeç</button>' +
       '<p class="small">Aynı kişi 2 dakikada bir çağırabilir.</p>', (b) => {
       b.querySelector('#smNo').onclick = closeSheet;
       b.querySelector('#smYes').onclick = async () => {

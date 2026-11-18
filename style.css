@@ -439,7 +439,7 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 
 /* 1.4.0: Herkesi çağır (Odadakiler başlığında), sohbette fotoğraf, klavye açılınca yazı kutusu görünür */
 .lblrow{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.summon{font-size:12px;font-weight:900;letter-spacing:0;color:#2A1100;background:linear-gradient(#FFB04A,#F2761C);border:1px solid #FFE2B8;border-radius:11px;padding:7px 11px;white-space:nowrap}
+.summon{font-size:12px;font-weight:900;letter-spacing:0;color:#fff;background:linear-gradient(#ff5a5a,#c0181d);border:1px solid #ffb3b3;box-shadow:0 0 10px rgba(255,59,59,.45);border-radius:11px;padding:7px 11px;white-space:nowrap}
 .summon:active{filter:brightness(.9)}
 .cphoto{width:46px;height:46px;flex:none;border-radius:12px;font-size:20px;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,176,74,.7)}
 .cb.ph{padding:5px}
@@ -453,8 +453,16 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 /* 1.4.1: yönetici oda kaydı + mesaj bildir/engelle */
 .lrec{color:#ff4a4a;font-weight:900;animation:recbl 1.2s steps(2) infinite}
 @keyframes recbl{50%{opacity:.25}}
-.lreckey{font:inherit;font-weight:900;font-size:11px;color:#ff4a4a;background:rgba(255,74,74,.10);border:1.5px solid #ff4a4a;border-radius:7px;padding:2px 8px;letter-spacing:.5px}
-.lreckey.on{background:#ff4a4a;color:#fff}
+.lreckey{font:inherit;font-weight:900;font-size:11.5px;color:#fff;background:linear-gradient(#ff5a5a,#c0181d);border:1.5px solid #ffb3b3;border-radius:7px;padding:3px 9px;letter-spacing:.5px;box-shadow:0 0 10px rgba(255,59,59,.55)}
+.lreckey.on{background:#fff;color:#c0181d;border:2px solid #ff4a4a}
 .cbanner.red{background:linear-gradient(#ff6b6b,#c0181d);border-color:#ffd0d0;z-index:1510}
 .cbanner.red .cbt b{color:#fff}.cbanner.red .cbt span{-webkit-line-clamp:3;color:#ffeaea}
 .cb.o{cursor:pointer}
+
+/* 1.4.2: kayıt şeridi (herkeste) + kişi satırı durum simgeleri */
+.recstrip{display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:6px;background:#c0181d;color:#fff;padding:1px 8px;font-weight:900;font-size:11.5px;white-space:nowrap;animation:rstr 1.4s ease-in-out infinite}
+.recstrip b{font-size:15px;letter-spacing:1px}.recstrip span{overflow:hidden;text-overflow:ellipsis}
+@keyframes rstr{50%{background:#7a0c10}}
+.sics{display:flex;flex-direction:row;gap:5px;align-items:center;margin-left:auto;flex:none}
+.sic{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:15px}
+.sic.g{background:#2fae5e}.sic.a{background:#FFB04A}.sic.l{background:rgba(255,176,74,.14);border:1.5px solid rgba(255,176,74,.6)}
