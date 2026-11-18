@@ -15,20 +15,15 @@
   // 1.4.10: iPhone ana ekran uygulamasında iOS yüksekliği eksik bildiriyor (altta ~1,5 cm boşluk kalıyordu): ekranın gerçek boyu kullanılır
   function fitApp() {
     try {
-      let h = Math.max(window.innerHeight, (window.visualViewport && window.visualViewport.height) || 0, document.documentElement.clientHeight || 0);
-      const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
-      const inner = h;
-      if (ios && standalone && screen && screen.height) {
-        // 1.4.13: iPhone ana ekran uygulamasında görünen alan ekranın kendisidir: ekranın gerçek boyu kullanılır
-        const portrait = window.innerHeight >= window.innerWidth;
-        const sh = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
-        if (sh > h && sh - h < 200) h = sh;
-        if (window.outerHeight && window.outerHeight > h && window.outerHeight - h < 200) h = window.outerHeight;
-      }
+      // 1.4.17: iPhone ana ekran uygulamasında sayfa sadece innerHeight kadarını çizebilir (örn. 852 / ekran 896).
+      // Daha uzun yapınca alt tuşlar kesiliyordu. Artık TAM innerHeight kullanılır; kalan şerit tuş çubuğuyla aynı renkte boyanır.
+      const h = window.innerHeight || document.documentElement.clientHeight || 0;
       document.documentElement.style.setProperty('--appH', h + 'px');
       document.documentElement.style.setProperty('--fullH', h + 'px');
-      window.__fitInfo = 'ekran ' + inner + '→' + h + ' · scr ' + (screen ? screen.width + 'x' + screen.height : '?') + ' · out ' + window.outerHeight + (standalone ? ' · ana ekran' : ' · tarayıcı');
+      const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+      const pr = document.getElementById('safeProbe'); let sb = '?', st = '?';
+      if (pr) { const cs = getComputedStyle(pr); sb = parseInt(cs.paddingBottom) || 0; st = parseInt(cs.paddingTop) || 0; }
+      window.__fitInfo = 'iç ' + h + ' · ekran ' + (screen ? screen.width + 'x' + screen.height : '?') + ' · güvenli üst ' + st + ' alt ' + sb + (standalone ? ' · ana ekran' : ' · tarayıcı');
     } catch (e) {}
   }
   // 1.3.4: Bas-konuş topuzunun çapı = sahne genişliğinin %34,3'ü (piksel), böylece her telefonda tam daire olur
@@ -2267,11 +2262,11 @@
   $('#vol').value = Math.round(player.volume * 100);
   $('#vol').oninput = (e) => { store.set('vol', +e.target.value); duckTick(true); };
   // 1.4.10: Android'deki gibi "Biri konuşunca müziği kıs" + kısma seviyesi
-  let duckOn = store.get('duckOn', true) !== false, duckLv = +store.get('duckLv', 20), lastTalkAt = 0;
-  if (isIOS) { $('#volRow').classList.add('hidden'); $('#volIos').classList.remove('hidden'); $('#duckRow').classList.add('hidden'); $('#duckIos').classList.remove('hidden'); }
+  let duckOn = isIOS ? store.get('duckIosOn', false) === true : store.get('duckOn', true) !== false, duckLv = +store.get('duckLv', 20), lastTalkAt = 0;
+  if (isIOS) { try { $('.duckbox .tg b').textContent = 'Biri konuşunca müziği sustur'; $('.duckbox .tg small').textContent = 'Kapalıyken müzik çalmaya devam eder (iPhone sesi kısmaya izin vermiyor).'; } catch (e) {} $('#volRow').classList.add('hidden'); $('#volIos').classList.remove('hidden'); $('#duckRow').classList.add('hidden'); $('#duckIos').classList.remove('hidden'); $('#duckIos').textContent = 'Açarsan biri konuşurken müzik tamamen susar, konuşma bitince geri gelir.'; }
   $('#duckOn').checked = duckOn; $('#duckLv').value = duckLv; $('#duckPct').textContent = '%' + duckLv;
   $('#duckRow').style.opacity = duckOn ? 1 : 0.4;
-  $('#duckOn').onchange = (e) => { duckOn = e.target.checked; store.set('duckOn', duckOn); $('#duckRow').style.opacity = duckOn ? 1 : 0.4; duckTick(true); };
+  $('#duckOn').onchange = (e) => { duckOn = e.target.checked; store.set(isIOS ? 'duckIosOn' : 'duckOn', duckOn); $('#duckRow').style.opacity = duckOn ? 1 : 0.4; duckTick(true); };
   $('#duckLv').oninput = (e) => { duckLv = +e.target.value; store.set('duckLv', duckLv); $('#duckPct').textContent = '%' + duckLv; duckTick(true); };
   function someoneTalking() {
     const r = S.room; if (!r) return false;
@@ -2506,7 +2501,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.16'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.17'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {

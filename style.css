@@ -599,3 +599,8 @@ body.lite .bezel-lcd,body.lite .raised,body.lite .mbtn,body.lite .sumbig,body.li
 /* alt tuşların altındaki gereksiz boşluk: iPhone'un alt çizgisi için sadece küçük pay kalsın */
 .nav{padding-bottom:calc(2px + max(0px, var(--safeB) - 28px))!important}
 .navtools .tool{color:#f1f2f5;font-size:24px}.navtools .amberk{color:#2a1600}
+
+/* 1.4.17: iPhone'da çizilemeyen alt şerit tuş çubuğuyla aynı renk olsun; tuşlar kesilmesin */
+html,body{background:#1b1c1f!important}
+.nav{padding-bottom:4px!important;background:linear-gradient(180deg,#2a2b30,#1b1c1f)!important;overflow:visible}
+.nav::after{display:none!important}
