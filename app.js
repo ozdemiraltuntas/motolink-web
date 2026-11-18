@@ -759,7 +759,7 @@
       if (on) { const s = Math.max(0, Math.floor((Date.now() - (RK.t0 || Date.now())) / 1000)); $('#rsName').textContent = '● KAYIT YAPILIYOR · ' + RK.by; $('#rsTime').textContent = String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'); }
     }
     const k = $('#roomRecBtn'); if (!k) return;
-    k.classList.toggle('hidden', !(S.room && amAdmin()));
+    k.classList.add('hidden');   // 1.4.4: kayıt tuşu artık YÖNET menüsünde
     k.classList.toggle('on', !!RK.mr);
     k.textContent = RK.mr ? '⏹ DURDUR' : '⏺ KAYIT';
   }
@@ -834,6 +834,7 @@
     roomRecUi();
   }
   function roomRecClear() { roomRecStop(true); clearInterval(RK.vt); RK.by = null; RK.byId = null; try { $('#recBanner').classList.add('hidden'); } catch (e) {} roomRecUi(); }
+  $('#recStrip').onclick = () => { if (RK.mr) $('#roomRecBtn').onclick(); };   // 1.4.4: yönetici şeride dokunup durdurur
   $('#roomRecBtn').onclick = () => {
     if (RK.mr) {
       sheet('<h3>⏹ Kaydı durdur?</h3><p>Kayıt durur, dosya telefonuna iner. Odadakilere "Kayıt durduruldu" duyurulur.</p><button class="mbtn danger" id="rcYes">DURDUR</button><button class="mbtn raised" id="rcNo">Devam et</button>', (b) => {
@@ -1106,10 +1107,10 @@
       // 1.4.2: durum simgeleri sağdan sola: [📍 konum] ← [📞 telefon / 🎧 müzik-medya] ← [🎙 konuşuyor]; yazı yok
       const ci = S.callInfo[x.id];
       if (S.onCall.has(x.id) && ci && Date.now() - ci.at > 75000) { S.onCall.delete(x.id); delete S.callInfo[x.id]; }  // takılı kalmasın
-      const ic = (x.speaking ? '<i class="sic g" title="konuşuyor">🎙</i>' : '') +
+      const ic = '<i class="sic m-' + x.mode + '" title="' + (x.mode === 'ptt' ? 'Bas-konuş' : x.mode === 'open' ? 'Eller Serbest' : 'Sürekli Açık') + '">🎙</i>' +
         (S.onCall.has(x.id) ? '<i class="sic a" title="' + (ci && ci.media ? 'müzik / medya' : 'telefonda') + '">' + (ci && ci.media ? '🎧' : '📞') + '</i>' : '') +
         (loc ? '<i class="sic l" title="konum">📍</i>' : '');
-      const badge = '<span class="badge ' + x.mode + '">' + (x.mode === 'ptt' ? 'Bas-konuş' : x.mode === 'open' ? 'Eller Serbest' : 'Sürekli Açık') + '</span>';
+      const badge = '';   // 1.4.4: mod artık sağda renkli simge
       const crown = isAdmin(x.id) ? (x.id === S.owner ? '👑' : '⭐') : '';
       const lock = S.silenced.has(x.id) ? '🔇' : (S.lockedIds.has(x.id) ? '🔒' : '');
       return '<button class="rider raised' + (x.speaking ? ' speak' : '') + '" data-id="' + esc(x.id) + '">' +
@@ -1216,6 +1217,8 @@
     if (!amAdmin()) return;
     const members = riders().filter((x) => !x.me).length;
     sheet('<h3>🛡 Oda yönetimi</h3><p>' + members + ' üye · ' + S.silenced.size + ' susturulmuş · ' + (S.roomLock ? 'oda kilitli' : 'oda serbest') + '</p>' +
+      (RK.mr ? '<button class="mbtn" data-a="rec" style="background:#fff;color:#c0181d;border:2px solid #ff4a4a;font-weight:900">⏹ Kaydı durdur</button>'
+             : '<button class="mbtn danger" data-a="rec">⏺ Konuşmaları kaydet</button>') +
       '<button class="mbtn raised" data-a="all">👥 Herkesi bas-konuşa al</button>' +
       '<button class="mbtn raised" data-a="lock">' + (S.roomLock ? '🔓 Oda kilidini aç (herkes mod seçebilsin)' : '🔒 Odayı bas-konuşa kilitle') + '</button>' +
       '<button class="mbtn danger" data-a="silall">🔇 Herkesi sustur (sadece yöneticiler konuşsun)</button>' +
@@ -1230,6 +1233,7 @@
         if (a === 'silall') modSilenceAll();
         if (a === 'free') modReleaseAll();
         if (a === 'apr') setApproval(!S.approval);
+        if (a === 'rec') setTimeout(() => $('#roomRecBtn').onclick(), 80);   // 1.4.4: kayıt YÖNET menüsünde
       });
     });
   };

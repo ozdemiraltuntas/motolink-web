@@ -470,3 +470,8 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 /* 1.4.3: yeşil ekranda LCD tuşları arkadan aydınlatmalı koyu lastik tuş (Android 0.9.105 ile aynı) */
 body:not(.lcd-olive):not(.lcd-red) .lkey{background:linear-gradient(#323a36,#1c2420 55%,#121815);color:#5cf096;
   border:1px solid #050806;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 3px 0 rgba(0,0,0,.55);text-shadow:0 0 7px rgba(70,222,126,.95)}
+
+/* 1.4.4: mod simgeleri, net kamera tuşu, kayıt şeridi dokunulabilir */
+.sic.m-ptt{background:#2fae5e}.sic.m-open{background:#ff9a2e}.sic.m-live{background:#ff3b3b}
+.cphoto{border:2px solid #FFB04A!important}
+#recStrip{cursor:pointer}
