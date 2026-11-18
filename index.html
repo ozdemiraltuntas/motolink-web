@@ -208,6 +208,7 @@
           <div class="g title fit" id="nowTitle">KAPALI</div>
           <div class="gd" id="nowSub">Listeden bir kanal seç</div>
           <div class="vu" id="vu"></div>
+          <div class="gd vuh hidden" id="vuHint">🎙 iPhone'da konuşurken müzik kısılır</div>
         </div>
         <div class="keys">
           <button id="mPrev" class="kbtn raised">⏮</button>
@@ -216,7 +217,8 @@
         </div>
         <div class="volrow"><span>🔈</span><input id="vol" type="range" min="0" max="100" value="80"><span>🔊</span></div>
       </div>
-      <div class="note">Seçtiğin kanal sadece sende çalar. Odada biri radyo paylaşırsa Oda sayfasında görünür.</div>
+      <div id="mShareRow" class="panel inset locmodes mshare hidden"><button class="sw" data-ms="0">🎧 Sadece ben</button><button class="sw" data-ms="1">📡 Odayla paylaş</button></div>
+      <div class="note" id="mNote">Seçtiğin kanal sadece sende çalar. Odada biri radyo paylaşırsa Oda sayfasında görünür.</div>
       <div id="stations" class="list"></div>
     </section>
 

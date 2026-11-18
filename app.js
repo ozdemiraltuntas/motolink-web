@@ -230,7 +230,7 @@
     if (p === 'routes') renderRoutes();
     if (p === 'plan') setTimeout(initPlanMap, 40);
     if (p === 'map') setTimeout(initMap, 30);
-    if (p === 'music') loadStations();
+    if (p === 'music') { loadStations(); renderMShare(); }
     if (p === 'room') renderRoom();
   }
 
@@ -617,6 +617,7 @@
         if (S.lockedIds.size || S.silenced.size || S.roomLock) publishLocks();
       }
       if (S.mySos) publishSos(false);
+      try { if (sharedRadio && sharedRadio.mine && radioWant) publish({ t: 'music', a: 'play', url: sharedRadio.url, title: sharedRadio.title, by: S.name || 'Bir sürücü' }); } catch (e) {}   // yeni gelen de duysun
       if (RK.mr) publish({ t: 'rec', on: true, by: RK.by, el: Math.floor((Date.now() - RK.t0) / 1000) });   // yeni gelen de uyarılsın, süreyi doğru görsün
       if (S.myLoc && S.locMode !== 'off') sendLoc(true);
       if (p.name) toast('👋 ' + dispName(p.identity, p.name) + ' odaya katıldı', 2500);
@@ -1139,6 +1140,7 @@
   }
   let fitT = null;
   function renderRoom() {
+    try { renderMShare(); } catch (e) {}
     clearTimeout(fitT); fitT = setTimeout(fitRoom, 80);
     const inRoom = !!S.room;
     $('#roomEmpty').classList.toggle('hidden', inRoom);
@@ -1879,7 +1881,41 @@
   const player = new Audio();
   player.setAttribute('playsinline', '');
   player.preload = 'none';
-  let stations = [], stIndex = -1, sharedRadio = null, stLoaded = false;
+  let stations = [], stIndex = -1, sharedRadio = null, stLoaded = false, radioWant = false;
+  // 1.4.9: Android'deki gibi "Sadece ben / Odayla paylaş". Paylaşımdayken kim kanal değiştirirse odadaki herkeste değişir.
+  let mShare = store.get('musicShare', true) !== false;
+  function renderMShare() {
+    const inRoom = !!S.room;
+    $('#mShareRow').classList.toggle('hidden', !inRoom);
+    $$('#mShareRow .sw').forEach((b) => b.classList.toggle('on', (b.dataset.ms === '1') === mShare));
+    $('#mNote').textContent = !inRoom ? 'Seçtiğin kanal sadece sende çalar. Odaya girince radyoyu odayla paylaşabilirsin.'
+      : mShare ? 'Odayla paylaş açık: seçtiğin kanal odadaki herkeste çalar; kim değiştirirse herkeste değişir. ■ herkeste durdurur.'
+      : 'Sadece ben: seçtiğin kanal sadece sende çalar, kimseye gitmez.';
+  }
+  $$('#mShareRow .sw').forEach((b) => b.addEventListener('click', () => {
+    const v = b.dataset.ms === '1'; if (v === mShare) return;
+    mShare = v; store.set('musicShare', v);
+    if (S.room) {
+      if (v && stIndex >= 0 && !sharedRadio && radioWant) shareStation(stIndex);         // bende çalanı odaya aç
+      else if (!v && sharedRadio && sharedRadio.mine) {                                     // benim açtığımı odada kapat, bende çalsın
+        publish({ t: 'music', a: 'stop' }); sharedRadio = null; $('#radioBar').classList.add('hidden');
+        const st = stations[stIndex]; if (st) setNow(st.t, 'SADECE SENDE', st.c || 'RADYO', true);
+      }
+      toast(v ? '📡 Radyo odayla paylaşılıyor.' : '🎧 Radyo sadece sende çalar.');
+    }
+    renderMShare(); renderStations();
+  }));
+  function shareStation(i) {
+    const s = stations[i]; if (!s) return;
+    stIndex = i;
+    sharedRadio = { url: s.u, title: s.t, by: S.name || '', mine: true };
+    playUrl(s.u, () => toast('Kanal açılamadı, başka bir kanal dene.'));
+    publish({ t: 'music', a: 'play', url: s.u, title: s.t, by: S.name || 'Bir sürücü' });
+    $('#radioText').textContent = '♪ ' + s.t + ' · ORTAK';
+    $('#radioBar').classList.remove('hidden');
+    setNow(s.t, 'ODAYLA ORTAK', 'Sen açtın · odadaki herkes dinliyor', true);
+    renderStations();
+  }
   player.volume = store.get('vol', 80) / 100;
   $('#vol').value = Math.round(player.volume * 100);
   $('#vol').oninput = (e) => { player.volume = e.target.value / 100; store.set('vol', +e.target.value); };
@@ -1957,8 +1993,8 @@
   }
   function renderStations() {
     $('#stations').innerHTML = stations.length ? stations.map((s, i) =>
-      '<button class="sta raised' + (i === stIndex && !sharedRadio ? ' on' : '') + '" data-i="' + i + '"><div class="lg">' + (s.l ? '<img src="' + esc(s.l) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '<span>' + esc(s.t.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü0-9 ]/g, '').split(' ').map((w) => w[0] || '').join('').slice(0, 2).toLocaleUpperCase('tr-TR') || '♪') + '</span></div>' +
-      '<div class="lcdbox"><div class="g">' + esc(s.t.toLocaleUpperCase('tr-TR')) + '</div><div class="gd">' + esc((i === stIndex && !sharedRadio) ? '▶ SENDE ÇALIYOR' : (s.c || 'RADYO').toLocaleUpperCase('tr-TR')) + '</div></div></button>').join('')
+      '<button class="sta raised' + (i === stIndex && radioWant ? ' on' : '') + '" data-i="' + i + '"><div class="lg">' + (s.l ? '<img src="' + esc(s.l) + '" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '') + '<span>' + esc(s.t.replace(/[^A-Za-zÇĞİÖŞÜçğıöşü0-9 ]/g, '').split(' ').map((w) => w[0] || '').join('').slice(0, 2).toLocaleUpperCase('tr-TR') || '♪') + '</span></div>' +
+      '<div class="lcdbox"><div class="g">' + esc(s.t.toLocaleUpperCase('tr-TR')) + '</div><div class="gd">' + esc((i === stIndex && radioWant) ? (sharedRadio ? '▶ ODADA ÇALIYOR' : '▶ SENDE ÇALIYOR') : (s.c || 'RADYO').toLocaleUpperCase('tr-TR')) + '</div></div></button>').join('')
       : '<div class="note">Kanal listesi alınamadı. İnternet bağlantını kontrol et.</div><button class="mbtn raised" id="stRetry">Tekrar dene</button>';
     const rt = $('#stRetry'); if (rt) rt.onclick = () => loadStations(true);
     $$('#stations .sta').forEach((el) => el.addEventListener('click', () => playStation(+el.dataset.i)));
@@ -1971,6 +2007,7 @@
     return hlsLoading;
   }
   async function playUrl(url, onFail) {
+    radioWant = true;
     try { if (hls) { hls.destroy(); hls = null; } } catch (e) {}
     const isHls = /\.m3u8(\?|$)/i.test(url);
     if (isHls && !player.canPlayType('application/vnd.apple.mpegurl')) {
@@ -1990,12 +2027,17 @@
   }
   function playStation(i) {
     const s = stations[i]; if (!s) return;
+    if (S.room && mShare) { shareStation(i); return; }
+    if (sharedRadio && sharedRadio.mine && S.room) publish({ t: 'music', a: 'stop' });   // odaya ben açtıysam herkeste kapansın
     sharedRadio = null; $('#radioBar').classList.add('hidden');
     stIndex = i; playUrl(s.u, () => toast('Kanal açılamadı, başka bir kanal dene.'));
     setNow(s.t, 'SADECE SENDE', s.c || 'RADYO', true);
     renderStations();
   }
   function stopRadio(silent) {
+    // 1.4.9: odada ortak radyo çalarken ■ herkeste durdurur (Android ile aynı)
+    if (!silent && sharedRadio && S.room) publish({ t: 'music', a: 'stop' });
+    radioWant = false;
     try { if (hls) { hls.destroy(); hls = null; } } catch (e) {}
     player.pause(); player.removeAttribute('src'); try { player.load(); } catch (e) {}
     sharedRadio = null; $('#radioBar').classList.add('hidden');
@@ -2015,8 +2057,10 @@
   $('#radioStop').onclick = () => stopRadio();
   function onMusic(j) {
     if (j.a === 'play' && j.url) {
+      // "Sadece ben" modunda kendi kanalım çalıyorsa odanınki onu bozmaz
+      if (!mShare && !sharedRadio && radioWant && !player.paused) { toast('🎵 Odada "' + (j.title || 'radyo') + '" açıldı. Dinlemek için Müzik > Odayla paylaş.'); return; }
       sharedRadio = { url: j.url, title: j.title || 'Radyo', by: j.by || '' };
-      stIndex = -1; playUrl(j.url, null);
+      stIndex = stations.findIndex((x) => x.u === j.url); playUrl(j.url, null); renderStations();
       $('#radioText').textContent = '♪ ' + sharedRadio.title + ' · ORTAK';
       $('#radioBar').classList.remove('hidden');
       setNow(sharedRadio.title, 'ODAYLA ORTAK', sharedRadio.by ? sharedRadio.by + ' paylaştı' : 'Odada çalıyor', true);
@@ -2026,7 +2070,11 @@
   // VU göstergesi (çalarken hareket eder)
   $('#vu').innerHTML = Array.from({ length: 24 }, () => '<i></i>').join('');
   setInterval(() => {
-    if (player.paused || !player.src) return;
+    // 1.4.9: iPhone'da mikrofon açıkken Safari müziği kısar: çubuklar dursun, neden olduğu yazsın; bırakınca müzik geri gelsin
+    const iosTalk = isIOS && S.micOn && radioWant;
+    $('#vuHint').classList.toggle('hidden', !iosTalk);
+    if (isIOS && !S.micOn && radioWant && player.src && player.paused && Date.now() - (window.__rpT || 0) > 3000) { window.__rpT = Date.now(); player.play().catch(() => {}); }
+    if (player.paused || !player.src || iosTalk) { if (iosTalk) $$('#vu i').forEach((b) => { b.style.height = '3px'; }); return; }
     $$('#vu i').forEach((b) => { b.style.height = (4 + Math.random() * 24) + 'px'; });
   }, 140);
 

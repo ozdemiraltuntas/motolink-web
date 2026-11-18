@@ -519,3 +519,8 @@ body.lite .bezel-lcd,body.lite .raised,body.lite .mbtn,body.lite .sumbig,body.li
 #people .lcdx .ptk.on{animation:ptkb 1s ease-in-out infinite}
 @keyframes ptkb{50%{opacity:.55}}
 #riders .sic.l{cursor:pointer;padding:4px;margin:-4px}
+
+/* 1.4.9: müzik odayla paylaş */
+.mshare{display:flex;gap:6px;margin:10px 0 0}.mshare .sw{flex:1}
+.mshare .sw.on{color:#111;background:linear-gradient(#ffc24a,#f59b14)}
+.lcdbox .vuh{margin-top:4px;color:#ffb547}
