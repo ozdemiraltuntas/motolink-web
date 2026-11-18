@@ -516,7 +516,6 @@ body.lite .bezel-lcd,body.lite .raised,body.lite .mbtn,body.lite .sumbig,body.li
 #people .lcdx{gap:4px!important}
 #people .lcdx .pr{font-size:17px;overflow:hidden;text-overflow:ellipsis;min-width:0}
 #people .lcdx .ptk{font-size:16px;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis}
-#people .lcdx .ptk.on{animation:ptkb 1s ease-in-out infinite}
 @keyframes ptkb{50%{opacity:.55}}
 #riders .sic.l{cursor:pointer;padding:4px;margin:-4px}
 
@@ -524,3 +523,15 @@ body.lite .bezel-lcd,body.lite .raised,body.lite .mbtn,body.lite .sumbig,body.li
 .mshare{display:flex;gap:6px;margin:10px 0 0}.mshare .sw{flex:1}
 .mshare .sw.on{color:#111;background:linear-gradient(#ffc24a,#f59b14)}
 .lcdbox .vuh{margin-top:4px;color:#ffb547}
+.duckbox{margin-top:10px}.duckbox .dl{font-size:13px;color:var(--soft)}#duckPct{min-width:42px;text-align:right;color:#ffb547}
+
+/* 1.4.11: harita arama kutusu ve rota düğmeleri */
+.mapsearch{position:absolute;left:10px;right:74px;top:12px;z-index:510;height:50px;border-radius:14px;display:flex;align-items:center;gap:8px;padding:0 12px;background:#24262b}
+.mapsearch span{font-size:18px}
+.mapsearch input{flex:1;min-width:0;height:100%;border:0;outline:0;background:transparent;color:#f1f2f5;font-size:16px;font-weight:600}
+.mapsearch input::placeholder{color:#8a9099}
+.pings{top:72px!important}
+.tool.mt{height:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#eee;font-size:20px;line-height:1}
+.tool.mt small{font-size:9.5px;font-weight:700;margin-top:3px;color:#d6d8dd}
+.tool.mt.on{box-shadow:0 0 0 2px #ff3b30,0 0 12px rgba(255,59,48,.6)}
+.tool.mt.on small{color:#ff6b60}

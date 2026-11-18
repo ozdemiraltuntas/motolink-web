@@ -12,7 +12,20 @@
   const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
   // 1.3.1: sayfa her telefonda tam ekranı doldursun (iPhone'da alttaki siyah boşluk kalmasın)
-  function fitApp() { try { document.documentElement.style.setProperty('--appH', Math.max(window.innerHeight, (window.visualViewport && window.visualViewport.height) || 0) + 'px'); } catch (e) {} }
+  // 1.4.10: iPhone ana ekran uygulamasında iOS yüksekliği eksik bildiriyor (altta ~1,5 cm boşluk kalıyordu): ekranın gerçek boyu kullanılır
+  function fitApp() {
+    try {
+      let h = Math.max(window.innerHeight, (window.visualViewport && window.visualViewport.height) || 0, document.documentElement.clientHeight || 0);
+      const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+      if (ios && standalone && screen && screen.height) {
+        const portrait = window.innerHeight >= window.innerWidth;
+        const sh = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
+        if (sh > h && sh - h < 120) h = sh;
+      }
+      document.documentElement.style.setProperty('--appH', h + 'px');
+    } catch (e) {}
+  }
   // 1.3.4: Bas-konuş topuzunun çapı = sahne genişliğinin %34,3'ü (piksel), böylece her telefonda tam daire olur
   function fitKnob() { try { const st = document.querySelector('.stage'); if (!st) return; const w = st.clientWidth || (window.innerWidth - 32); st.style.setProperty('--kd', Math.round(w * 0.343) + 'px'); } catch (e) {} }
   window.addEventListener('resize', () => { fitKnob(); setTimeout(fitKnob, 150); }); window.addEventListener('orientationchange', () => setTimeout(fitKnob, 300));
@@ -37,6 +50,9 @@
   window.addEventListener('resize', () => setTimeout(fitRoom, 120)); window.addEventListener('orientationchange', () => setTimeout(fitRoom, 350));
   // 1.4.7: HAFİF MOD: eski / zayıf telefonlarda parlama, gölge, kayan yazı ve sık güncellenen efektler kapanır
   function autoLite() {
+    return true;   // 1.4.11: kasılma olmasın diye web'de efektler herkeste baştan kapalı (Ayarlar > Hafif mod'dan açılabilir)
+  }
+  function autoLiteOld() {
     const ua = navigator.userAgent || '';
     const m = ua.match(/OS (\d+)_\d+.*like Mac OS X/);
     const oldIos = m && +m[1] < 16;
@@ -152,7 +168,7 @@
   const COLORS = ['#46e38a', '#ffb547', '#3ff0e4', '#b9f25c', '#ff7eb6', '#8fa8ff', '#ffd23c', '#ff8a5c', '#c39bff', '#5ce1ff'];
   function colorOf(id) { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; }
   // 1.4.8: profil resimleri (Android ile aynı: giriş anahtarındaki "av" = küçük JPEG base64)
-  const AVC = {};
+  const AVC = {}, AVU = {};
   function avSrc(id) {
     let b = '';
     if (id === S.id) b = store.get('avatar', '') || '';
@@ -161,7 +177,11 @@
       const k = p && p.metadata;
       if (k) { if (AVC[id] && AVC[id].k === k) b = AVC[id].b; else { try { b = JSON.parse(k).av || ''; } catch (e) {} AVC[id] = { k, b }; } }
     }
-    return b && /^[A-Za-z0-9+/=]+$/.test(b) ? 'data:image/jpeg;base64,' + b : '';
+    if (!b || !/^[A-Za-z0-9+/=]+$/.test(b)) return '';
+    // 1.4.11: resim bir kez çözülür, sonra kısa bir adresle kullanılır (her çizimde koca yazı yerine)
+    if (AVU[b]) return AVU[b];
+    try { const bin = atob(b); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); AVU[b] = URL.createObjectURL(new Blob([u8], { type: 'image/jpeg' })); } catch (e) { AVU[b] = 'data:image/jpeg;base64,' + b; }
+    return AVU[b];
   }
   function avIn(id, name) { const u = avSrc(id); return u ? '<img src="' + u + '" alt="">' : esc(initial(name)); }
   function initial(n) { return (String(n || '?').trim()[0] || '?').toLocaleUpperCase('tr-TR'); }
@@ -1138,10 +1158,20 @@
     r.remoteParticipants.forEach((p) => list.push({ id: p.identity, name: dispName(p.identity, p.name), me: false, speaking: p.isSpeaking, mode: S.modes[p.identity] || 'ptt' }));
     return list;
   }
-  let fitT = null;
+  let fitT = null, fitKey = '', rrPending = false;
+  // 1.4.11: TAKILMA DÜZELTMESİ: oda ekranı saniyede onlarca kez baştan çiziliyordu (her konuşma değişiminde).
+  // Artık istekler birleştirilir (en fazla ~6 kez/saniye) ve sadece değişen kısım yeniden çizilir.
   function renderRoom() {
+    if (rrPending) return;
+    rrPending = true;
+    setTimeout(() => { rrPending = false; try { renderRoomNow(); } catch (e) {} }, 160);
+  }
+  function setHtml(sel, html) { const el = $(sel); if (el && el.__h !== html) { el.__h = html; el.innerHTML = html; return true; } return false; }
+  function renderRoomNow() {
     try { renderMShare(); } catch (e) {}
-    clearTimeout(fitT); fitT = setTimeout(fitRoom, 80);
+    // ekrana sığdırma sadece ekran/oda durumu değişince (her çizimde değil: sürekli ölçmek telefonu kasıyordu)
+    const fk = (!!S.room) + '|' + page + '|' + window.innerWidth + 'x' + window.innerHeight + '|' + ((store.get('rooms', []) || []).length > 0);
+    if (fk !== fitKey) { fitKey = fk; clearTimeout(fitT); fitT = setTimeout(fitRoom, 80); }
     const inRoom = !!S.room;
     $('#roomEmpty').classList.toggle('hidden', inRoom);
     $('#roomBody').classList.toggle('hidden', !inRoom);
@@ -1172,7 +1202,7 @@
     $('#talking').classList.toggle('on', talking.length > 0);
     $('#talkingText').textContent = talking.length ? '🎙 ' + talking.join(', ') + (talking.length > 1 || talking[0] === 'Sen' ? ' konuşuyor' : ' konuşuyor') : 'Kimse konuşmuyor';
     const me = S.locs[S.id];
-    $('#riders').innerHTML = list.map((x) => {
+    const ridersChanged = setHtml('#riders', list.map((x) => {
       const loc = S.locs[x.id];
       const line = [];
       if (!x.me && me && loc) line.push(fmtDist(dist(me, loc)));
@@ -1191,14 +1221,14 @@
         '<div class="av" style="background:' + colorOf(x.id) + '">' + avIn(x.id, x.name) + '</div>' +
         '<div class="tx"><div class="nm"><span class="n">' + esc(x.name) + '</span>' + crown + lock + badge + '</div><small>' + esc(line.join(' · ')) + '</small></div>' +
         '<span class="sics">' + ic + '</span></button>';
-    }).join('');
-    $$('#riders .rider').forEach((el) => el.addEventListener('click', (e) => {
+    }).join(''));
+    if (ridersChanged) $$('#riders .rider').forEach((el) => el.addEventListener('click', (e) => {
       const pin = e.target.closest && e.target.closest('[data-loc]');
       if (pin) { e.stopPropagation(); showOnMap(pin.dataset.loc); return; }   // 1.4.8: 📍 → haritada o kişi
       riderMenu(el.dataset.id);
     }));
     // 1.4.5: alttaki Odadakiler tuşu (küçük yuvarlak resimler) + Kişiler sayfası başlığı
-    $('#pAvs').innerHTML = list.slice(0, 4).map((x) => '<i style="background:' + colorOf(x.id) + '">' + avIn(x.id, x.name) + '</i>').join('');
+    setHtml('#pAvs', list.slice(0, 4).map((x) => '<i style="background:' + colorOf(x.id) + '">' + avIn(x.id, x.name) + '</i>').join(''));
     $('#pplTitle').textContent = 'Odadaki kişiler (' + list.length + ')';
     // 1.4.8: kişiler sayfasının LCD'si: oda adı + kim konuşuyor + mod
     try {
@@ -1556,9 +1586,11 @@
     go('map');
     setTimeout(() => { try { if (map) { map.invalidateSize(); map.setView([l.lat, l.lon], Math.max(map.getZoom(), 16)); if (markers[id]) markers[id].openTooltip(); } } catch (e) {} }, 350);
   }
+  let mapAll = {};
   function renderMapRiders() {
     $('#pings').classList.toggle('hidden', !S.room);
     const all = Object.assign({}, S.locs);
+    mapAll = all;
     if (S.myLoc && !all[S.id]) all[S.id] = { id: S.id, name: S.name || 'Ben', lat: S.myLoc.lat, lon: S.myLoc.lon, spd: S.myLoc.spd };
     if (map) {
       Object.keys(markers).forEach((id) => { if (!all[id]) { map.removeLayer(markers[id]); delete markers[id]; } });
@@ -1566,21 +1598,21 @@
         const me = l.id === S.id;
         const icon = L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
           html: '<div class="pin' + (me ? ' me' : '') + '" style="background:' + colorOf(l.id) + '">' + avIn(l.id, l.name) + '</div>' });
-        if (markers[l.id]) { markers[l.id].setLatLng([l.lat, l.lon]); markers[l.id].setIcon(icon); }
+        if (markers[l.id]) { markers[l.id].setLatLng([l.lat, l.lon]); if (markers[l.id].__h !== icon.options.html) { markers[l.id].__h = icon.options.html; markers[l.id].setIcon(icon); } }
         else markers[l.id] = L.marker([l.lat, l.lon], { icon }).addTo(map).bindTooltip(esc(me ? 'Sen' : l.name));
       });
       if (!centered && S.myLoc) { centered = true; map.setView([S.myLoc.lat, S.myLoc.lon], 14); }
     }
     const me = all[S.id];
     const nAll = Object.keys(all).length;
-    $('#mapRiders').innerHTML = (nAll ? '<button class="chip all" data-all="1"><div class="av">👥</div><b>Herkes</b><small>' + nAll + ' kişi</small></button>' : '') + Object.values(all).map((l) => {
+    const mrHtml = (nAll ? '<button class="chip all" data-all="1"><div class="av">👥</div><b>Herkes</b><small>' + nAll + ' kişi</small></button>' : '') + Object.values(all).map((l) => {
       const sub = l.id === S.id ? (l.spd > 3 ? l.spd + ' km/s' : 'sen') : (l.spd > 3 ? l.spd + ' km/s' : (me ? fmtDist(dist(me, l)) : ''));
       return '<button class="chip" data-id="' + esc(l.id) + '"><div class="av" style="background:' + colorOf(l.id) + '">' + avIn(l.id, l.name) + '</div><b>' + esc(l.id === S.id ? 'Sen' : l.name) + '</b><small>' + esc(sub) + '</small></button>';
     }).join('') || '<div class="note" style="margin:4px 2px">' + (S.room ? 'Konumunu paylaşan kimse yok.' : 'Odaya girince arkadaşların burada görünür.') + '</div>';
-    $$('#mapRiders .chip').forEach((el) => el.addEventListener('click', () => {
+    if (setHtml('#mapRiders', mrHtml)) $$('#mapRiders .chip').forEach((el) => el.addEventListener('click', () => {
       if (!map) return;
-      if (el.dataset.all) { showEveryone(all); return; }
-      const l = all[el.dataset.id]; if (l) map.setView([l.lat, l.lon], Math.max(map.getZoom(), 15));
+      if (el.dataset.all) { showEveryone(mapAll); return; }
+      const l = mapAll[el.dataset.id]; if (l) map.setView([l.lat, l.lon], Math.max(map.getZoom(), 15));
     }));
     if (page === 'room') renderRoom();
   }
@@ -1590,6 +1622,7 @@
   function routesList() { return store.get('routes', []) || []; }
   function fmtDur(ms) { const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ':' : '') + String(m).padStart(h ? 2 : 1, '0') + ':' + String(x).padStart(2, '0'); }
   function recStats() {
+    try { mtRecUi(); } catch (e) {}
     const ms = REC.on ? Date.now() - REC.t0 : 0;
     const km = REC.dist / 1000;
     $('#recTag').textContent = REC.on ? '● KAYIT AÇIK' : 'KAYIT KAPALI';
@@ -1744,6 +1777,17 @@
   $('#planQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') planSearch(); });
   $('#planBack').onclick = () => go('routes');
   $('#planNew').onclick = () => openPlan(null);
+  // 1.4.11: Harita sayfasından rota: "Nereye gidiyoruz?" yazınca rota hazırla açılır, konumun ilk durak olur, yer aranır
+  function mapPlan(q) {
+    const st = S.myLoc ? [{ lat: +S.myLoc.lat.toFixed(5), lon: +S.myLoc.lon.toFixed(5), n: 'Konumum' }] : [];
+    openPlan({ name: '', stops: st });
+    if (q) setTimeout(() => { $('#planQ').value = q; planSearch(); }, 250);
+  }
+  $('#mapQ').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const q = $('#mapQ').value.trim(); $('#mapQ').blur(); $('#mapQ').value = ''; if (q) mapPlan(q); } });
+  $('#mtPlan').onclick = () => { const q = $('#mapQ').value.trim(); $('#mapQ').value = ''; mapPlan(q); };
+  $('#mtRoutes').onclick = () => go('routes');
+  $('#mtRec').onclick = () => { if (REC.on) recStop(true); else recStart(); mtRecUi(); };
+  function mtRecUi() { $('#mtRec').classList.toggle('on', REC.on); $('#mtRecI').textContent = REC.on ? '⏹' : '⏺'; $('#mtRecT').textContent = REC.on ? 'Bitir' : 'Kayıt'; }
   $('#planLoc').onclick = () => {
     if (!navigator.geolocation) { toast('Konum alınamıyor.'); return; }
     navigator.geolocation.getCurrentPosition((p) => { addStop(p.coords.latitude, p.coords.longitude, 'Konumum'); planMap && planMap.setView([p.coords.latitude, p.coords.longitude], 13); }, () => toast('Konum izni verilmedi.'), { enableHighAccuracy: true, timeout: 10000 });
@@ -1918,7 +1962,31 @@
   }
   player.volume = store.get('vol', 80) / 100;
   $('#vol').value = Math.round(player.volume * 100);
-  $('#vol').oninput = (e) => { player.volume = e.target.value / 100; store.set('vol', +e.target.value); };
+  $('#vol').oninput = (e) => { store.set('vol', +e.target.value); duckTick(true); };
+  // 1.4.10: Android'deki gibi "Biri konuşunca müziği kıs" + kısma seviyesi
+  let duckOn = store.get('duckOn', true) !== false, duckLv = +store.get('duckLv', 20), lastTalkAt = 0;
+  if (isIOS) { $('#volRow').classList.add('hidden'); $('#volIos').classList.remove('hidden'); $('#duckRow').classList.add('hidden'); $('#duckIos').classList.remove('hidden'); }
+  $('#duckOn').checked = duckOn; $('#duckLv').value = duckLv; $('#duckPct').textContent = '%' + duckLv;
+  $('#duckRow').style.opacity = duckOn ? 1 : 0.4;
+  $('#duckOn').onchange = (e) => { duckOn = e.target.checked; store.set('duckOn', duckOn); $('#duckRow').style.opacity = duckOn ? 1 : 0.4; duckTick(true); };
+  $('#duckLv').oninput = (e) => { duckLv = +e.target.value; store.set('duckLv', duckLv); $('#duckPct').textContent = '%' + duckLv; duckTick(true); };
+  function someoneTalking() {
+    const r = S.room; if (!r) return false;
+    let t = !!S.micOn;
+    if (!t) r.remoteParticipants.forEach((p) => { if (p.isSpeaking) t = true; });
+    return t;
+  }
+  function duckTick(now) {
+    if (someoneTalking()) lastTalkAt = Date.now();
+    const ducked = duckOn && S.room && Date.now() - lastTalkAt < 900;   // konuşma bitince kısa bir süre sonra geri açılır
+    if (isIOS) { player.muted = !!ducked; return; }   // iPhone'da ses seviyesi ayarlanamaz: konuşmada sus, sonra geri gel
+    const base = (+store.get('vol', 80)) / 100;
+    const target = ducked ? base * duckLv / 100 : base;
+    const cur = player.volume;
+    const nv = now ? target : (Math.abs(target - cur) < 0.06 ? target : cur + Math.sign(target - cur) * (target < cur ? 0.15 : 0.06));
+    try { player.volume = Math.max(0, Math.min(1, nv)); } catch (e) {}
+  }
+  setInterval(() => { if (radioWant || player.muted) duckTick(false); }, 150);
   // Hazır kanallar (Android uygulamasındaki radyolar.m3u ile aynı) — sunucuya ulaşılamasa bile liste boş kalmasın
   const BUILTIN = [
     ['Alem FM', 'https://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8', 'Pop'],
@@ -2071,10 +2139,11 @@
   $('#vu').innerHTML = Array.from({ length: 24 }, () => '<i></i>').join('');
   setInterval(() => {
     // 1.4.9: iPhone'da mikrofon açıkken Safari müziği kısar: çubuklar dursun, neden olduğu yazsın; bırakınca müzik geri gelsin
+    if (page !== 'music') return;   // 1.4.11: müzik sayfası açık değilken boşuna çalışmasın
     const iosTalk = isIOS && S.micOn && radioWant;
     $('#vuHint').classList.toggle('hidden', !iosTalk);
     if (isIOS && !S.micOn && radioWant && player.src && player.paused && Date.now() - (window.__rpT || 0) > 3000) { window.__rpT = Date.now(); player.play().catch(() => {}); }
-    if (player.paused || !player.src || iosTalk) { if (iosTalk) $$('#vu i').forEach((b) => { b.style.height = '3px'; }); return; }
+    if (player.paused || !player.src || iosTalk || player.muted) { if (iosTalk || player.muted) $$('#vu i').forEach((b) => { b.style.height = '3px'; }); return; }
     $$('#vu i').forEach((b) => { b.style.height = (4 + Math.random() * 24) + 'px'; });
   }, 140);
 

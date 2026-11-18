@@ -177,8 +177,13 @@
     <!-- 3 · HARİTA -->
     <section id="p-map" class="page nopad">
       <div id="map"></div>
+      <!-- 1.4.11: Android'deki gibi arama + rota düğmeleri -->
+      <div class="mapsearch raised"><span>🔍</span><input id="mapQ" type="search" enterkeyhint="search" placeholder="Nereye gidiyoruz?" autocomplete="off"></div>
       <div class="maptools">
         <button id="centerBtn" class="tool amberk" aria-label="Konumum">◎</button>
+        <button id="mtPlan" class="tool raised mt"><span>🧭</span><small>Rota</small></button>
+        <button id="mtRoutes" class="tool raised mt"><span>📂</span><small>Rotalar</small></button>
+        <button id="mtRec" class="tool raised mt"><span id="mtRecI">⏺</span><small id="mtRecT">Kayıt</small></button>
         <button id="routeClear" class="tool raised hidden" aria-label="Rotayı gizle">✕</button>
       </div>
       <div id="pings" class="pings hidden">
@@ -215,7 +220,13 @@
           <button id="mPlay" class="kbtn raised amberText">▶</button>
           <button id="mNext" class="kbtn raised">⏭</button>
         </div>
-        <div class="volrow"><span>🔈</span><input id="vol" type="range" min="0" max="100" value="80"><span>🔊</span></div>
+        <div class="volrow" id="volRow"><span>🔈</span><input id="vol" type="range" min="0" max="100" value="80"><span>🔊</span></div>
+        <div class="small hidden" id="volIos">🔊 Müzik sesini telefonun yan tuşlarıyla ayarla.</div>
+      </div>
+      <div class="sec raised duckbox">
+        <label class="tg"><div><b>Biri konuşunca müziği kıs</b><small>Kapalıysa konuşmalar müziğin üstünden duyulur.</small></div><input type="checkbox" id="duckOn" class="switch"></label>
+        <div class="volrow" id="duckRow"><span class="dl">Kısınca</span><input id="duckLv" type="range" min="0" max="60" step="5" value="20"><b id="duckPct">%20</b></div>
+        <div class="small hidden" id="duckIos">iPhone'da konuşma sırasında müzik susar, bitince geri gelir.</div>
       </div>
       <div id="mShareRow" class="panel inset locmodes mshare hidden"><button class="sw" data-ms="0">🎧 Sadece ben</button><button class="sw" data-ms="1">📡 Odayla paylaş</button></div>
       <div class="note" id="mNote">Seçtiğin kanal sadece sende çalar. Odada biri radyo paylaşırsa Oda sayfasında görünür.</div>
@@ -243,7 +254,7 @@
         <label class="tg"><div><b>Yankı engelleme</b><small>Hoparlörden gelen sesin geri gitmesini önler</small></div><input type="checkbox" id="optEcho" class="switch"></label>
         <label class="tg"><div><b>Otomatik ses seviyesi</b><small>Fısıltı da bağırış da aynı seviyede gider</small></div><input type="checkbox" id="optAgc" class="switch"></label>
         <label class="tg"><div><b>Ekran açık kalsın</b><small>Odadayken ekran kararmaz (iPhone'da ses kesilmesin diye gerekli)</small></div><input type="checkbox" id="optWake" class="switch"></label>
-        <label class="tg"><div><b>Hafif mod <small id="liteAuto"></small></b><small>Eski / yavaş telefonlarda parlama ve efektleri kapatır, uygulama akıcı çalışır</small></div><input type="checkbox" id="optLite" class="switch"></label>
+        <label class="tg"><div><b>Hafif mod <small id="liteAuto"></small></b><small>Parlama ve hareketli efektleri kapatır, uygulama akıcı çalışır. Kapatırsan efektler açılır ama telefon kasabilir</small></div><input type="checkbox" id="optLite" class="switch"></label>
         <label class="tg"><div><b>Uyarıları sesli oku</b><small>Benzin, mola, S.O.S gibi uyarılar kulaklıktan okunur</small></div><input type="checkbox" id="optSpeak" class="switch"></label>
       </div>
       <div class="sec raised">
