@@ -229,6 +229,13 @@
         <button id="saveName" class="mbtn amber">Kaydet</button>
       </div>
       <div class="sec raised">
+        <h4>Profil fotoğrafı</h4>
+        <div class="small">Odadakiler seni bu resimle görür (Android ve web). Bir sonraki odaya girişte görünür.</div>
+        <div class="avrow"><div id="myAv" class="av big"></div>
+          <div class="avbtns"><button id="avPick" class="mbtn raised">📷 Fotoğraf seç</button><button id="avDel" class="mbtn raised">Kaldır</button></div></div>
+        <input id="avFile" type="file" accept="image/*" hidden>
+      </div>
+      <div class="sec raised">
         <h4>Ses filtresi</h4>
         <label class="tg"><div><b>Gürültü bastırma</b><small>Rüzgar ve yol sesini azaltır</small></div><input type="checkbox" id="optNoise" class="switch"></label>
         <label class="tg"><div><b>Yankı engelleme</b><small>Hoparlörden gelen sesin geri gitmesini önler</small></div><input type="checkbox" id="optEcho" class="switch"></label>
@@ -279,7 +286,7 @@
 <div id="recBanner" class="cbanner red hidden"><span class="cbi">⏺</span><div class="cbt"><b id="rbTitle"></b><span id="rbText"></span></div></div>
 <div id="people" class="chatwrap hidden">
   <div class="chead"><button id="pplBack" class="back amber">‹ Odaya dön</button><b id="pplTitle">Odadaki kişiler</b></div>
-  <div class="bezel-lcd"><div class="lcdx"><div class="lrow"><span id="pplInfo">📞 0 TELEFONDA</span><span id="pplCount">👥 0</span></div></div></div>
+  <div class="bezel-lcd"><div class="lcdx"><div class="lrow"><b id="pplRoom" class="pr"></b><span id="pplCount">👥 0</span></div><div class="lrow ptk" id="pplTalk">Kimse konuşmuyor</div><div class="lrow foot"><span id="pplInfo">📞 0 TELEFONDA</span><span id="pplMode"></span></div></div></div>
   <button id="ptt2" class="ptt2"><span id="ptt2Icon">🎙</span> <b id="ptt2Title">BAS KONUŞ</b> <small id="ptt2Hint">basılı tut</small></button>
   <div class="panel inset modes">
     <button class="sw" data-mode="ptt">Bas-konuş</button>

@@ -132,8 +132,10 @@
     t.textContent = msg;
     t.classList.remove('hidden');
     clearTimeout(toastT);
-    toastT = setTimeout(() => t.classList.add('hidden'), ms || 3800);
+    toastT = setTimeout(() => t.classList.add('hidden'), Math.min(ms || 3000, 6000));
   }
+  // 1.4.8: bildirim üstte, kısa; dokununca kapanır
+  $('#toast').addEventListener('click', () => { clearTimeout(toastT); $('#toast').classList.add('hidden'); });
   function busy(on, text) {
     $('#busyText').textContent = text || 'Bağlanıyor…';
     $('#busy').classList.toggle('hidden', !on);
@@ -149,6 +151,19 @@
 
   const COLORS = ['#46e38a', '#ffb547', '#3ff0e4', '#b9f25c', '#ff7eb6', '#8fa8ff', '#ffd23c', '#ff8a5c', '#c39bff', '#5ce1ff'];
   function colorOf(id) { let h = 0; for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; }
+  // 1.4.8: profil resimleri (Android ile aynı: giriş anahtarındaki "av" = küçük JPEG base64)
+  const AVC = {};
+  function avSrc(id) {
+    let b = '';
+    if (id === S.id) b = store.get('avatar', '') || '';
+    else if (S.room) {
+      let p = null; S.room.remoteParticipants.forEach((x) => { if (x.identity === id) p = x; });
+      const k = p && p.metadata;
+      if (k) { if (AVC[id] && AVC[id].k === k) b = AVC[id].b; else { try { b = JSON.parse(k).av || ''; } catch (e) {} AVC[id] = { k, b }; } }
+    }
+    return b && /^[A-Za-z0-9+/=]+$/.test(b) ? 'data:image/jpeg;base64,' + b : '';
+  }
+  function avIn(id, name) { const u = avSrc(id); return u ? '<img src="' + u + '" alt="">' : esc(initial(name)); }
   function initial(n) { return (String(n || '?').trim()[0] || '?').toLocaleUpperCase('tr-TR'); }
 
   function speak(text) {
@@ -498,7 +513,7 @@
     S.wantRoom = { code, pw: usePw };
     rememberRoom(code, S.title, S.locked, usePw);
     // 1.3.0: kayıtlı (kalıcı / şifreli) odaya girince odayı kaydeden diğerlerine bildirim (Android ile aynı)
-    if (S.locked || S.permanent) { api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: usePw, avatar: '', announce: true, known: true }).catch(() => {}); }
+    if (S.locked || S.permanent) { api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: usePw, avatar: store.get('avatar', '') || '', announce: true, known: true }).catch(() => {}); }
     store.set('lastRoom', { code, pw: usePw, title: S.title }); // uygulama kapanıp açılınca tek dokunuşla geri dönmek için
 
     // Mikrofonu bir kez aç (izin sorulur), sonra Bas-konuş'ta kapat: odaya giren herkes bas-konuşla başlar
@@ -521,7 +536,7 @@
     let shown = false;
     while (true) {
       try {
-        const a = await api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: pw, avatar: '', announce: false, known: !!(store.get('rooms', []) || []).find((r) => r.code === code) });
+        const a = await api({ action: 'token', room: code, identity: S.id, name: S.name || 'Sürücü', password: pw, avatar: store.get('avatar', '') || '', announce: false, known: !!(store.get('rooms', []) || []).find((r) => r.code === code) });
         if (shown) { closeSheet(); busy(true, 'Odaya bağlanıyor…'); }
         return a;
       } catch (e) {
@@ -604,7 +619,7 @@
       if (S.mySos) publishSos(false);
       if (RK.mr) publish({ t: 'rec', on: true, by: RK.by, el: Math.floor((Date.now() - RK.t0) / 1000) });   // yeni gelen de uyarılsın, süreyi doğru görsün
       if (S.myLoc && S.locMode !== 'off') sendLoc(true);
-      if (p.name) toast(dispName(p.identity, p.name) + ' odaya katıldı');
+      if (p.name) toast('👋 ' + dispName(p.identity, p.name) + ' odaya katıldı', 2500);
       renderRoom(); renderMapRiders();
     });
     room.on(E.ParticipantDisconnected, (p) => {
@@ -613,6 +628,7 @@
       renderRoom(); renderMapRiders();
     });
     room.on(E.ActiveSpeakersChanged, () => renderRoom());
+    try { room.on(E.ParticipantMetadataChanged, () => { renderRoom(); renderMapRiders(); }); } catch (e) {}
     room.on(E.DataReceived, (payload, participant) => onData(payload, participant));
     room.on(E.AudioPlaybackStatusChanged, () => $('#audioUnlock').classList.toggle('hidden', room.canPlaybackAudio));
     room.on(E.Reconnecting, () => toast('Bağlantı zayıf, yeniden bağlanıyor…'));
@@ -1165,19 +1181,30 @@
       if (S.onCall.has(x.id) && ci && Date.now() - ci.at > 75000) { S.onCall.delete(x.id); delete S.callInfo[x.id]; }  // takılı kalmasın
       const ic = '<i class="sic m-' + x.mode + '" title="' + (x.mode === 'ptt' ? 'Bas-konuş' : x.mode === 'open' ? 'Eller Serbest' : 'Sürekli Açık') + '">🎙</i>' +
         (S.onCall.has(x.id) ? '<i class="sic a" title="' + (ci && ci.media ? 'müzik / medya' : 'telefonda') + '">' + (ci && ci.media ? '🎧' : '📞') + '</i>' : '') +
-        (loc ? '<i class="sic l" title="konum">📍</i>' : '');
+        (loc ? '<i class="sic l" data-loc="' + esc(x.id) + '" title="haritada göster">📍</i>' : '');
       const badge = '';   // 1.4.4: mod artık sağda renkli simge
       const crown = isAdmin(x.id) ? (x.id === S.owner ? '👑' : '⭐') : '';
       const lock = S.silenced.has(x.id) ? '🔇' : (S.lockedIds.has(x.id) ? '🔒' : '');
       return '<button class="rider raised' + (x.speaking ? ' speak' : '') + '" data-id="' + esc(x.id) + '">' +
-        '<div class="av" style="background:' + colorOf(x.id) + '">' + esc(initial(x.name)) + '</div>' +
+        '<div class="av" style="background:' + colorOf(x.id) + '">' + avIn(x.id, x.name) + '</div>' +
         '<div class="tx"><div class="nm"><span class="n">' + esc(x.name) + '</span>' + crown + lock + badge + '</div><small>' + esc(line.join(' · ')) + '</small></div>' +
         '<span class="sics">' + ic + '</span></button>';
     }).join('');
-    $$('#riders .rider').forEach((el) => el.addEventListener('click', () => riderMenu(el.dataset.id)));
+    $$('#riders .rider').forEach((el) => el.addEventListener('click', (e) => {
+      const pin = e.target.closest && e.target.closest('[data-loc]');
+      if (pin) { e.stopPropagation(); showOnMap(pin.dataset.loc); return; }   // 1.4.8: 📍 → haritada o kişi
+      riderMenu(el.dataset.id);
+    }));
     // 1.4.5: alttaki Odadakiler tuşu (küçük yuvarlak resimler) + Kişiler sayfası başlığı
-    $('#pAvs').innerHTML = list.slice(0, 4).map((x) => '<i style="background:' + colorOf(x.id) + '">' + esc(initial(x.name)) + '</i>').join('');
+    $('#pAvs').innerHTML = list.slice(0, 4).map((x) => '<i style="background:' + colorOf(x.id) + '">' + avIn(x.id, x.name) + '</i>').join('');
     $('#pplTitle').textContent = 'Odadaki kişiler (' + list.length + ')';
+    // 1.4.8: kişiler sayfasının LCD'si: oda adı + kim konuşuyor + mod
+    try {
+      $('#pplRoom').textContent = (S.locked ? '🔒 ' : '') + String(S.title || S.code || '').toLocaleUpperCase('tr-TR');
+      $('#pplTalk').textContent = $('#talkingText').textContent;
+      $('#pplTalk').classList.toggle('on', talking.length > 0);
+      $('#pplMode').textContent = { ptt: 'BAS-KONUŞ', open: 'ELLER SERBEST', live: 'SÜREKLİ AÇIK' }[currentMode()];
+    } catch (e) {}
     $('#pplCount').textContent = '👥 ' + list.length;
     $('#pplInfo').textContent = '📞 ' + list.filter((x) => S.onCall.has(x.id)).length + ' TELEFONDA';
   }
@@ -1519,6 +1546,14 @@
     if (pts.length === 1) map.setView(pts[0], 15);
     else map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 });
   }
+  // 1.4.8: kişiler listesindeki 📍 → Harita sekmesi, o kişi ortada
+  function showOnMap(id) {
+    const l = id === S.id && S.myLoc ? { lat: S.myLoc.lat, lon: S.myLoc.lon } : S.locs[id];
+    if (!l) { toast('Bu kişinin konumu yok.'); return; }
+    try { $('#people').classList.add('hidden'); } catch (e) {}
+    go('map');
+    setTimeout(() => { try { if (map) { map.invalidateSize(); map.setView([l.lat, l.lon], Math.max(map.getZoom(), 16)); if (markers[id]) markers[id].openTooltip(); } } catch (e) {} }, 350);
+  }
   function renderMapRiders() {
     $('#pings').classList.toggle('hidden', !S.room);
     const all = Object.assign({}, S.locs);
@@ -1528,7 +1563,7 @@
       Object.values(all).forEach((l) => {
         const me = l.id === S.id;
         const icon = L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
-          html: '<div class="pin' + (me ? ' me' : '') + '" style="background:' + colorOf(l.id) + '">' + esc(initial(l.name)) + '</div>' });
+          html: '<div class="pin' + (me ? ' me' : '') + '" style="background:' + colorOf(l.id) + '">' + avIn(l.id, l.name) + '</div>' });
         if (markers[l.id]) { markers[l.id].setLatLng([l.lat, l.lon]); markers[l.id].setIcon(icon); }
         else markers[l.id] = L.marker([l.lat, l.lon], { icon }).addTo(map).bindTooltip(esc(me ? 'Sen' : l.name));
       });
@@ -1538,7 +1573,7 @@
     const nAll = Object.keys(all).length;
     $('#mapRiders').innerHTML = (nAll ? '<button class="chip all" data-all="1"><div class="av">👥</div><b>Herkes</b><small>' + nAll + ' kişi</small></button>' : '') + Object.values(all).map((l) => {
       const sub = l.id === S.id ? (l.spd > 3 ? l.spd + ' km/s' : 'sen') : (l.spd > 3 ? l.spd + ' km/s' : (me ? fmtDist(dist(me, l)) : ''));
-      return '<button class="chip" data-id="' + esc(l.id) + '"><div class="av" style="background:' + colorOf(l.id) + '">' + esc(initial(l.name)) + '</div><b>' + esc(l.id === S.id ? 'Sen' : l.name) + '</b><small>' + esc(sub) + '</small></button>';
+      return '<button class="chip" data-id="' + esc(l.id) + '"><div class="av" style="background:' + colorOf(l.id) + '">' + avIn(l.id, l.name) + '</div><b>' + esc(l.id === S.id ? 'Sen' : l.name) + '</b><small>' + esc(sub) + '</small></button>';
     }).join('') || '<div class="note" style="margin:4px 2px">' + (S.room ? 'Konumunu paylaşan kimse yok.' : 'Odaya girince arkadaşların burada görünür.') + '</div>';
     $$('#mapRiders .chip').forEach((el) => el.addEventListener('click', () => {
       if (!map) return;
@@ -2006,6 +2041,30 @@
 
   // ------------------------------------------------------------ ayarlar
   $('#nameInput').value = S.name;
+  // 1.4.8: profil fotoğrafı (64×64 JPEG, en fazla 3000 karakter; Android ile aynı)
+  function renderMyAv() { $('#myAv').style.background = colorOf(S.id); $('#myAv').innerHTML = avIn(S.id, S.name || '?'); $('#avDel').classList.toggle('hidden', !store.get('avatar', '')); }
+  renderMyAv();
+  $('#avPick').onclick = () => $('#avFile').click();
+  $('#avDel').onclick = () => { store.set('avatar', ''); renderMyAv(); renderHome(); toast('Profil fotoğrafı kaldırıldı.'); };
+  $('#avFile').onchange = () => {
+    const f = $('#avFile').files && $('#avFile').files[0]; $('#avFile').value = '';
+    if (!f) return;
+    const img = new Image(); const u = URL.createObjectURL(f);
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas'); c.width = c.height = 64;
+        const k = Math.min(img.naturalWidth, img.naturalHeight);
+        c.getContext('2d').drawImage(img, (img.naturalWidth - k) / 2, (img.naturalHeight - k) / 2, k, k, 0, 0, 64, 64);
+        let b = '';
+        for (let q = 0.8; q >= 0.25; q -= 0.1) { b = c.toDataURL('image/jpeg', q).split(',')[1] || ''; if (b.length <= 3000) break; }
+        if (!b || b.length > 3000) { toast('Bu fotoğraf kullanılamadı, başka bir tane dene.'); return; }
+        store.set('avatar', b); renderMyAv(); try { renderRoom(); renderMapRiders(); } catch (e) {}
+        toast(S.room ? 'Kaydedildi. Odadakiler bir sonraki girişte görür.' : 'Profil fotoğrafı kaydedildi.');
+      } catch (e) { toast('Fotoğraf okunamadı.'); } finally { URL.revokeObjectURL(u); }
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); toast('Fotoğraf okunamadı.'); };
+    img.src = u;
+  };
   $('#saveName').onclick = () => {
     const v = $('#nameInput').value.trim();
     if (v.length < 2) { toast('Adın en az 2 harf olmalı.'); return; }
