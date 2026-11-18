@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111214">
+<title>MotoLink · Odaya katıl</title>
+<link rel="icon" href="img/icon-192.png">
+<style>
+  /* MotoLink davet sayfası (web 1.4.6). Android: uygulama yüklüyse hemen açılır, değilse GitHub'daki son sürüme gider.
+     iPhone: web sürümü açılır. Google Play'e geçince REL adresi Play Store sayfasıyla değiştirilir. */
+  :root{color-scheme:dark}
+  [hidden]{display:none!important}
+  body{margin:0;min-height:100vh;font-family:Roboto,Arial,sans-serif;background:#111214;color:#e9eaee;text-align:center;
+    padding:28px 18px;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;gap:6px}
+  img.logo{width:200px;max-width:70%;margin-top:6px}
+  h1{font-size:22px;margin:14px 0 2px}
+  .room{color:#FFB04A;font-weight:800;font-size:18px;margin-bottom:6px}
+  .k{color:#9aa0aa;font-size:14px;line-height:1.5;max-width:360px}
+  .b{display:block;width:100%;max-width:360px;box-sizing:border-box;margin:10px auto 2px;padding:17px;border-radius:16px;font-size:19px;font-weight:900;
+    text-decoration:none;color:#2a1600;background:linear-gradient(#ffc35a,#f09a1c 55%,#c97508);box-shadow:0 5px 0 #6b3d05}
+  .b.g{background:linear-gradient(#53d989,#1e9a50 55%,#147a3d);color:#eafff0;box-shadow:0 5px 0 #0b4422}
+  .b.d{background:linear-gradient(#4a4c53,#26272b);color:#e9eaee;box-shadow:0 5px 0 #0c0c0d;font-size:16px}
+  .c{font-size:30px;font-weight:900;letter-spacing:2px;color:#7dffb0;font-family:monospace;margin:4px 0 10px;user-select:all}
+  .note{background:#1c1d21;border:1px solid #2c2e33;border-radius:14px;padding:12px 14px;max-width:360px;font-size:14px;line-height:1.5;color:#c9ccd2;text-align:left}
+  .note b{color:#fff}
+  .wait{color:#7dffb0;font-weight:700;margin-top:8px}
+</style>
+</head>
+<body>
+  <img class="logo" src="img/wordmark.png" alt="MotoLink">
+  <h1>MotoLink odasına davetlisin</h1>
+  <div class="room" id="room"></div>
+  <div class="wait" id="wait" hidden>MotoLink açılıyor…</div>
+
+  <a class="b" id="open" href="#">🏍 MotoLink'te aç ve katıl</a>
+  <a class="b g" id="web" href="#">🍏 iPhone / web'den katıl</a>
+  <a class="b d" id="dl" href="#">⬇ Android uygulamasını indir</a>
+
+  <div class="note" id="howto">
+    <b>Uygulama yüklü değilse:</b><br>
+    1. "Android uygulamasını indir"e dokun, açılan sayfada <b>MotoLink … .apk</b> dosyasına dokun ve kur.<br>
+    2. Kurduktan sonra <b>bu davet bağlantısına tekrar dokun</b>; MotoLink açılıp odaya girer.
+  </div>
+  <div class="k" style="margin-top:12px">Açılmazsa MotoLink'i aç, Ana sayfada <b>Kodla katıl</b>'a dokun ve şu kodu yaz:</div>
+  <div class="c" id="code"></div>
+
+<script>
+  // ------------------------------------------------------------ ayarlar
+  // Google Play'e geçince REL = 'https://play.google.com/store/apps/details?id=com.ozdemir.motolink' yapılacak.
+  var REL = 'https://github.com/ozdemiraltuntas/motolink-web/releases/latest';
+  var PKG = 'com.ozdemir.motolink';
+
+  // ------------------------------------------------------------ oda kodu
+  var q = new URLSearchParams(location.search);
+  var c = String(q.get('c') || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 32);
+  var n = String(q.get('n') || '').slice(0, 40);
+  document.getElementById('code').textContent = c || '—';
+  document.getElementById('room').textContent = n;
+
+  var intent = 'intent://join?c=' + encodeURIComponent(c) + '#Intent;scheme=motolink;package=' + PKG +
+    ';S.browser_fallback_url=' + encodeURIComponent(REL) + ';end';
+  var web = './' + (c ? '?c=' + encodeURIComponent(c) : '');
+  document.getElementById('open').href = intent;
+  document.getElementById('web').href = web;
+  document.getElementById('dl').href = REL;
+
+  var ua = navigator.userAgent || '';
+  var android = /Android/i.test(ua);
+  var ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  if (ios) {
+    // iPhone: Android uygulaması yok, doğrudan web sürümü (oda kodu hazır)
+    document.getElementById('open').hidden = true;
+    document.getElementById('dl').hidden = true;
+    document.getElementById('howto').hidden = true;
+    location.replace(web);
+  } else if (android) {
+    // Android: yüklüyse uygulama açılır; yüklü değilse tarayıcı GitHub'daki son sürüme gider
+    document.getElementById('web').hidden = true;
+    if (c) {
+      document.getElementById('wait').hidden = false;
+      setTimeout(function () { location.href = intent; }, 250);
+      setTimeout(function () { document.getElementById('wait').hidden = true; }, 3500);
+    }
+  } else {
+    // Bilgisayar: sadece bilgi
+    document.getElementById('open').hidden = true;
+  }
+</script>
+</body>
+</html>

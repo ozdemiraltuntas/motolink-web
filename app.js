@@ -89,7 +89,8 @@
     return t.substring(0, 32).replace(/-+$/, '');
   }
   const validCode = (c) => /^[A-Z0-9-]{3,32}$/.test(c);
-  const inviteUrl = (c) => CFG.SERVER + '?page=katil&c=' + encodeURIComponent(c);
+  // 1.4.6: davet bağlantısı web sitesindeki katıl sayfası (Android: uygulama açılır / yoksa indirilir · iPhone: web sürümü)
+  const inviteUrl = (c) => new URL('katil.html?c=' + encodeURIComponent(c), location.href.split('?')[0].replace(/[^/]*$/, '')).href;
 
   // ------------------------------------------------------------ arayüz yardımcıları
   let toastT = null;
