@@ -14,7 +14,7 @@
 <link rel="icon" href="img/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="lib/leaflet.css">
-<link rel="stylesheet" href="style.css?v=1.4.15">
+<link rel="stylesheet" href="style.css?v=1.4.16">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wdth,wght@62.5..100,700..900&display=swap" rel="stylesheet">
 </head>
@@ -244,7 +244,7 @@
 
     <!-- 5 · AYARLAR -->
     <section id="p-set" class="page">
-      <div class="verbox raised"><b id="verBig">web 1.4.15</b><small id="verFit"></small></div>
+      <div class="verbox raised"><b id="verBig">web 1.4.16</b><small id="verFit"></small></div>
       <div class="sec raised">
         <h4>Sürücü</h4>
         <div class="small">Adın odada ve haritada görünür.</div>
@@ -307,6 +307,13 @@
 <div id="sosMine" class="sosalert sosmine hidden"></div>
 <div id="toast" class="toast hidden"></div>
 <div id="recBanner" class="cbanner red hidden"><span class="cbi">⏺</span><div class="cbt"><b id="rbTitle"></b><span id="rbText"></span></div></div>
+<!-- 1.4.16: uygulama içi navigasyon -->
+<div id="navi" class="hidden">
+  <div id="naviMap"></div>
+  <div id="naviTop" class="navtop"><div id="nvArrow" class="nvarrow">⬆</div><div class="nvtx"><b id="nvDist">—</b><span id="nvText">Rota hazırlanıyor…</span><small id="nvStreet"></small></div></div>
+  <div class="navtools"><button id="nvSnd" class="tool raised" aria-label="Sesli tarif">🔊</button><button id="nvExt" class="tool raised" aria-label="Başka uygulamada aç">↗</button><button id="nvCen" class="tool amberk" aria-label="Beni ortala">◎</button></div>
+  <div id="naviBot" class="navbot"><div class="nvstat"><b id="nvRem">—</b><small>KALAN</small></div><div class="nvstat"><b id="nvEta">—</b><small>VARIŞ</small></div><div class="nvstat"><b id="nvSpd">0</b><small>KM/S</small></div><button id="nvEnd" class="nvend">✕ BİTİR</button></div>
+</div>
 <div id="people" class="chatwrap hidden">
   <div class="chead"><button id="pplBack" class="back amber">‹ Odaya dön</button><b id="pplTitle">Odadaki kişiler</b></div>
   <div class="bezel-lcd"><div class="lcdx"><div class="lrow"><b id="pplRoom" class="pr"></b><span id="pplCount">👥 0</span></div><div class="lrow ptk" id="pplTalk">Kimse konuşmuyor</div><div class="lrow foot"><span id="pplInfo">📞 0 TELEFONDA</span><span id="pplMode"></span></div></div></div>
@@ -326,7 +333,7 @@
 <script src="lib/livekit-client.umd.js"></script>
 <script src="lib/leaflet.js"></script>
 <script src="lib/qrcode.js"></script>
-<script src="config.js?v=1.4.15"></script>
-<script src="app.js?v=1.4.15"></script>
+<script src="config.js?v=1.4.16"></script>
+<script src="app.js?v=1.4.16"></script>
 </body>
 </html>

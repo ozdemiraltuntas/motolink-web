@@ -1858,13 +1858,13 @@
     planMap.fitBounds(stops.map((s) => [s.lat, s.lon]), { padding: [30, 30], maxZoom: 13 });
     try {
       const q = stops.map((s) => s.lon + ',' + s.lat).join(';');
-      const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + q + '?overview=full&geometries=geojson');
+      const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + q + '?overview=full&geometries=geojson&steps=true');
       const j = await r.json(); if (my !== planSeq) return;
       const rt = j.routes && j.routes[0]; if (!rt) throw new Error('yok');
       const geo = rt.geometry.coordinates.map((c) => [c[1], c[0]]);
       planLayer = L.polyline(geo, { color: '#2d7cff', weight: 6, opacity: 0.9 }).addTo(planMap);
       planMap.fitBounds(planLayer.getBounds(), { padding: [24, 24] });
-      rLast = { stops, km: rt.distance / 1000, sec: rt.duration, geo };
+      rLast = { stops, km: rt.distance / 1000, sec: rt.duration, geo, steps: flatSteps(rt) };
       const eta = new Date(Date.now() + rt.duration * 1000);
       const molas = Math.floor(rt.duration / 7200);
       $('#planKm').textContent = Math.round(rt.distance / 1000) + ' KM · ' + fmtDurS(rt.duration);
@@ -1918,8 +1918,8 @@
     } catch (e) { return ''; }
   }
   $('#rGo').onclick = () => { if (!$('#rGo').disabled) buildRoute(); else toast('Önce nereden ve nereye seç.'); };
-  $('#rNav').onclick = () => {
-    const R = rLast; if (!R) return;
+  function openExternalNav(R) {
+    if (!R) return;
     const s = R.stops, a = s[0], b = s[s.length - 1], mid = s.slice(1, -1);
     const g = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&origin=' + a.lat + ',' + a.lon + '&destination=' + b.lat + ',' + b.lon + (mid.length ? '&waypoints=' + mid.map((x) => x.lat + ',' + x.lon).join('|') : '');
     const ap = 'https://maps.apple.com/?dirflg=d&saddr=' + a.lat + ',' + a.lon + '&daddr=' + b.lat + ',' + b.lon;
@@ -1932,7 +1932,154 @@
         bx.querySelector('#nvY').onclick = () => { closeSheet(); window.open(ya, '_blank'); };
         bx.querySelector('#nvN').onclick = closeSheet;
       });
-  };
+  }
+  // ------------------------------------------------------------ 1.4.16: UYGULAMA İÇİ NAVİGASYON (Android'deki gibi: sesli yol tarifi, dönüş okları, kalan km, yoldan çıkınca yeniden hesaplama)
+  function flatSteps(rt) {
+    const out = [];
+    ((rt.legs) || []).forEach((lg) => (lg.steps || []).forEach((st) => {
+      const m = st.maneuver || {};
+      out.push({ type: m.type || '', mod: m.modifier || '', exit: m.exit || 0, loc: { lat: (m.location || [0, 0])[1], lon: (m.location || [0, 0])[0] }, name: st.name || '', d: st.distance || 0, t: st.duration || 0 });
+    }));
+    return out;
+  }
+  const NV = { on: false, map: null, line: null, me: null, steps: [], idx: 0, geo: [], stops: [], watch: null, pos: null, follow: true, snd: true, said: {}, off: 0, lastRe: 0, rerouting: false, lastFix: 0, dest: null };
+  function nvDir(mod) { return ({ left: 'sola', right: 'sağa', 'slight left': 'hafif sola', 'slight right': 'hafif sağa', 'sharp left': 'keskin sola', 'sharp right': 'keskin sağa', straight: 'düz', uturn: 'U dönüşü yap' })[mod] || ''; }
+  function nvArrow(st) {
+    if (!st) return '⬆';
+    if (st.type === 'arrive') return '🏁';
+    if (st.type === 'roundabout' || st.type === 'rotary' || st.type === 'roundabout turn') return '⟳';
+    return ({ left: '⬅', right: '➡', 'slight left': '↖', 'slight right': '↗', 'sharp left': '↩', 'sharp right': '↪', straight: '⬆', uturn: '⮌' })[st.mod] || '⬆';
+  }
+  function nvText(st) {
+    if (!st) return 'Düz devam et';
+    const nm = st.name ? ' · ' + st.name : '';
+    if (st.type === 'arrive') return 'Hedefe vardınız';
+    if (st.type === 'depart') return 'Yola çık';
+    if (st.type === 'roundabout' || st.type === 'rotary' || st.type === 'roundabout turn') return 'Kavşakta ' + (st.exit ? st.exit + '. çıkıştan çık' : 'devam et');
+    if (st.mod === 'uturn') return 'U dönüşü yap';
+    if (st.type === 'merge') return 'Yola katıl';
+    if (st.type === 'fork') return (st.mod.indexOf('left') >= 0 ? 'Çatalda sola' : st.mod.indexOf('right') >= 0 ? 'Çatalda sağa' : 'Çatalda düz') + ' devam et';
+    if (st.type === 'on ramp' || st.type === 'off ramp') return 'Bağlantı yoluna ' + (nvDir(st.mod) ? nvDir(st.mod).replace('düz', '') + ' ' : '') + 'gir';
+    if (st.type === 'continue' || st.type === 'new name' || st.mod === 'straight') return 'Düz devam et';
+    return nvDir(st.mod) ? nvDir(st.mod).charAt(0).toLocaleUpperCase('tr-TR') + nvDir(st.mod).slice(1) + ' dön' : 'Devam et';
+  }
+  const nvDist = (m) => m >= 1000 ? (m / 1000).toFixed(m >= 10000 ? 0 : 1).replace('.', ',') + ' km' : (m < 50 ? Math.round(m / 5) * 5 : Math.round(m / 10) * 10) + ' m';
+  function nvSpeak(t) { if (!NV.snd || !window.speechSynthesis) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = 'tr-TR'; u.rate = 1.02; speechSynthesis.speak(u); } catch (e) {} }
+  function nvStart(R) {
+    if (!R || !R.steps || !R.steps.length) { toast('Bu rotada yol tarifi yok. Rotayı yeniden oluştur.'); return; }
+    NV.on = true; NV.steps = R.steps.map((x) => ({ ...x })); NV.idx = 0; NV.geo = R.geo; NV.stops = R.stops; NV.said = {}; NV.off = 0; NV.follow = true; NV.dest = R.stops[R.stops.length - 1]; NV.pos = null;
+    nvIndexSteps();
+    $('#navi').classList.remove('hidden');
+    if (!NV.map) {
+      NV.map = L.map('naviMap', { zoomControl: false, attributionControl: false }).setView([R.stops[0].lat, R.stops[0].lon], 16);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(NV.map);
+      NV.map.on('dragstart', () => { NV.follow = false; });
+    }
+    setTimeout(() => NV.map.invalidateSize(), 60);
+    if (NV.line) NV.map.removeLayer(NV.line);
+    NV.line = L.polyline(R.geo, { color: '#2d7cff', weight: 8, opacity: 0.9 }).addTo(NV.map);
+    if (NV.dm) NV.map.removeLayer(NV.dm);
+    NV.dm = L.marker([NV.dest.lat, NV.dest.lon], { icon: L.divIcon({ className: '', html: '<div class="rpin" style="background:#ff4b4b"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(NV.map);
+    if (!NV.me) NV.me = L.marker([R.stops[0].lat, R.stops[0].lon], { icon: L.divIcon({ className: '', html: '<div class="nvme"><i></i></div>', iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 1000 }).addTo(NV.map);
+    NV.me.setLatLng([R.stops[0].lat, R.stops[0].lon]);
+    nvBanner(null);
+    keepAwake(true);
+    if (!navigator.geolocation) { toast('Bu tarayıcı konum desteklemiyor.'); return; }
+    NV.watch = navigator.geolocation.watchPosition(nvFix, () => { $('#nvText').textContent = 'Konum bulunamıyor'; $('#nvStreet').textContent = 'Konum iznini ve GPS\'i kontrol et'; }, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+    nvSpeak0('Navigasyon başladı. Yol tarifi için ekranı açık tut.');
+    toast('🧭 Navigasyon başladı. Ekran açık kalmalı.', 3500);
+  }
+  function nvSpeak0(t) { nvSpeak(t); }
+  function nvStop() {
+    NV.on = false;
+    if (NV.watch != null) { try { navigator.geolocation.clearWatch(NV.watch); } catch (e) {} NV.watch = null; }
+    try { speechSynthesis.cancel(); } catch (e) {}
+    $('#navi').classList.add('hidden');
+    if (!REC.on && !S.room) keepAwake(false);
+  }
+  // rota çizgisine en yakın noktaya uzaklık (m)
+  // konuma en yakın rota noktasının sırası (önce son bilinen yerin ilerisine bakar: geri sıçramasın)
+  function nvNearest(p) {
+    const g = NV.geo; let best = 1e12, bi = 0;
+    const from = Math.max(0, (NV.ui || 0) - 5), to = Math.min(g.length - 1, (NV.ui || 0) + 600);
+    const scan = (a, b) => { for (let i = a; i <= b; i++) { const dx = (g[i][0] - p.lat) * 111000, dy = (g[i][1] - p.lon) * 111000 * Math.cos(p.lat * Math.PI / 180); const d = dx * dx + dy * dy; if (d < best) { best = d; bi = i; } } };
+    scan(from, to);
+    if (best > 150 * 150) scan(0, g.length - 1);
+    return bi;
+  }
+  function nvIndexSteps() {
+    const g = NV.geo;
+    NV.steps.forEach((st) => { let best = 1e12, bi = 0; for (let i = 0; i < g.length; i++) { const dx = (g[i][0] - st.loc.lat) * 111000, dy = (g[i][1] - st.loc.lon) * 111000 * Math.cos(st.loc.lat * Math.PI / 180); const d = dx * dx + dy * dy; if (d < best) { best = d; bi = i; } } st.gi = bi; });
+    NV.ui = 0;
+  }
+  function nvOffDist(p) {
+    let best = 1e9; const g = NV.geo;
+    for (let i = 0; i < g.length; i += 1) { const dx = Math.abs(g[i][0] - p.lat) * 111000, dy = Math.abs(g[i][1] - p.lon) * 111000 * Math.cos(p.lat * Math.PI / 180); if (dx < 400 && dy < 400) { const d = Math.sqrt(dx * dx + dy * dy); if (d < best) best = d; } }
+    if (best < 1e8) return best;
+    for (let i = 0; i < g.length; i += 5) { const d = dist(p, { lat: g[i][0], lon: g[i][1] }); if (d < best) best = d; }
+    return best;
+  }
+  function nvBanner(d, st) {
+    const nx = st || NV.steps[Math.min(NV.idx + 1, NV.steps.length - 1)];
+    $('#nvArrow').textContent = nvArrow(nx);
+    $('#nvDist').textContent = d == null ? '—' : nvDist(d);
+    $('#nvText').textContent = nvText(nx);
+    $('#nvStreet').textContent = nx && nx.name && nx.type !== 'arrive' ? nx.name : '';
+  }
+  function nvFix(pos) {
+    if (!NV.on) return;
+    const c = pos.coords, p = { lat: c.latitude, lon: c.longitude }; NV.pos = p; NV.lastFix = Date.now();
+    const spd = c.speed != null && c.speed >= 0 ? Math.round(c.speed * 3.6) : 0;
+    $('#nvSpd').textContent = spd;
+    NV.me.setLatLng([p.lat, p.lon]);
+    const hd = c.heading; if (hd != null && !isNaN(hd) && spd > 4) { const el = NV.me.getElement && NV.me.getElement(); const inner = el && el.querySelector('.nvme'); if (inner) inner.style.transform = 'rotate(' + hd + 'deg)'; }
+    if (NV.follow) NV.map.setView([p.lat, p.lon], Math.max(NV.map.getZoom(), 16), { animate: true });
+    const st = NV.steps;
+    // yol üzerindeki ilerleme: konumun rotadaki en yakın noktası; dönüşün noktasını geçtiysen adım ilerler
+    const ui = nvNearest(p);
+    NV.ui = Math.max(NV.ui || 0, ui);
+    while (NV.idx < st.length - 2 && (NV.ui >= st[NV.idx + 1].gi - 1 || dist(p, st[NV.idx + 1].loc) < 25)) NV.idx++;
+    const nx = st[Math.min(NV.idx + 1, st.length - 1)];
+    const dNx = dist(p, nx.loc);
+    nvBanner(dNx, nx);
+    // kalan yol ve süre
+    let remD = dNx, remT = 0; for (let j = NV.idx + 1; j < st.length; j++) { remD += st[j].d; remT += st[j].t; }
+    const dEnd = dist(p, NV.dest);
+    $('#nvRem').textContent = nvDist(Math.max(remD, dEnd));
+    $('#nvEta').textContent = hhmm(new Date(Date.now() + remT * 1000));
+    // sesli tarif: 400 m, 150 m ve dönüşte
+    const key = NV.idx + 1;
+    const say = (tag, t) => { const k = key + tag; if (!NV.said[k]) { NV.said[k] = 1; nvSpeak(t); } };
+    if (nx.type === 'arrive') { if (dEnd < 40) { nvSpeak('Hedefe vardınız.'); toast('🏁 Hedefe vardınız', 4000); setTimeout(nvStop, 3500); return; } if (dNx < 300) say('a', 'Hedefe ' + nvDist(dNx) + ' kaldı.'); }
+    else if (dNx < 40) say('c', nvText(nx));
+    else if (dNx < 180) say('b', nvDist(dNx) + ' sonra ' + nvText(nx).toLocaleLowerCase('tr-TR'));
+    else if (dNx < 500 && st[NV.idx + 1].d > 600) say('a', nvDist(dNx) + ' sonra ' + nvText(nx).toLocaleLowerCase('tr-TR'));
+    // yoldan çıktıysan yeniden hesapla
+    const off = nvOffDist(p);
+    $('#naviTop').classList.toggle('warn', off > 80);
+    if (off > 80) { NV.off++; if (NV.off >= 3 && !NV.rerouting && Date.now() - NV.lastRe > 15000) nvReroute(p); } else NV.off = 0;
+  }
+  async function nvReroute(p) {
+    NV.rerouting = true; NV.lastRe = Date.now();
+    $('#nvText').textContent = 'Yol yeniden hesaplanıyor…'; nvSpeak('Yol yeniden hesaplanıyor.');
+    try {
+      const rest = NV.stops.slice(1).filter((s) => dist(p, s) > 300 || s === NV.dest);
+      const pts = [{ lat: p.lat, lon: p.lon }].concat(rest);
+      const q = pts.map((s) => s.lon + ',' + s.lat).join(';');
+      const r = await fetch('https://router.project-osrm.org/route/v1/driving/' + q + '?overview=full&geometries=geojson&steps=true');
+      const j = await r.json(); const rt = j.routes && j.routes[0]; if (!rt) throw new Error('yok');
+      NV.steps = flatSteps(rt); NV.idx = 0; NV.geo = rt.geometry.coordinates.map((c) => [c[1], c[0]]); NV.said = {}; NV.off = 0; nvIndexSteps();
+      if (NV.line) NV.map.removeLayer(NV.line);
+      NV.line = L.polyline(NV.geo, { color: '#2d7cff', weight: 8, opacity: 0.9 }).addTo(NV.map);
+      $('#naviTop').classList.remove('warn');
+    } catch (e) { $('#nvText').textContent = 'Yol hesaplanamadı (internet?)'; }
+    NV.rerouting = false;
+  }
+  $('#nvEnd').onclick = () => nvStop();
+  $('#nvCen').onclick = () => { NV.follow = true; if (NV.pos) NV.map.setView([NV.pos.lat, NV.pos.lon], 17); };
+  $('#nvSnd').onclick = () => { NV.snd = !NV.snd; $('#nvSnd').textContent = NV.snd ? '🔊' : '🔇'; if (!NV.snd) { try { speechSynthesis.cancel(); } catch (e) {} } toast(NV.snd ? 'Sesli yol tarifi açık' : 'Sesli yol tarifi kapalı', 1800); };
+  $('#nvExt').onclick = () => openExternalNav(rLast);
+  $('#rNav').onclick = () => { if (!rLast) { toast('Önce rotayı oluştur.'); return; } nvStart(rLast); };
   $('#planBack').onclick = () => go(PLAN.from || 'map');
   $('#planNew').onclick = () => openPlan(null, 'routes');
   // Harita sayfasından: "Nereye gidiyoruz?" yazınca rota oluştur açılır; Nereden = Konumum, yazdığın yer için öneriler çıkar
@@ -2359,7 +2506,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.15'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.16'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
