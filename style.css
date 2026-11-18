@@ -466,3 +466,7 @@ body:not(.lcd-olive):not(.lcd-red) .ltog i.g,body.lcd-olive .ltog i.o,body.lcd-r
 .sics{display:flex;flex-direction:row;gap:5px;align-items:center;margin-left:auto;flex:none}
 .sic{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:15px}
 .sic.g{background:#2fae5e}.sic.a{background:#FFB04A}.sic.l{background:rgba(255,176,74,.14);border:1.5px solid rgba(255,176,74,.6)}
+
+/* 1.4.3: yeşil ekranda LCD tuşları arkadan aydınlatmalı koyu lastik tuş (Android 0.9.105 ile aynı) */
+body:not(.lcd-olive):not(.lcd-red) .lkey{background:linear-gradient(#323a36,#1c2420 55%,#121815);color:#5cf096;
+  border:1px solid #050806;box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 3px 0 rgba(0,0,0,.55);text-shadow:0 0 7px rgba(70,222,126,.95)}
