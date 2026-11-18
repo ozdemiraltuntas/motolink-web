@@ -18,12 +18,17 @@
       let h = Math.max(window.innerHeight, (window.visualViewport && window.visualViewport.height) || 0, document.documentElement.clientHeight || 0);
       const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       const standalone = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+      const inner = h;
       if (ios && standalone && screen && screen.height) {
+        // 1.4.13: iPhone ana ekran uygulamasında görünen alan ekranın kendisidir: ekranın gerçek boyu kullanılır
         const portrait = window.innerHeight >= window.innerWidth;
         const sh = portrait ? Math.max(screen.height, screen.width) : Math.min(screen.height, screen.width);
-        if (sh > h && sh - h < 120) h = sh;
+        if (sh > h && sh - h < 200) h = sh;
+        if (window.outerHeight && window.outerHeight > h && window.outerHeight - h < 200) h = window.outerHeight;
       }
       document.documentElement.style.setProperty('--appH', h + 'px');
+      document.documentElement.style.setProperty('--fullH', h + 'px');
+      window.__fitInfo = 'ekran ' + inner + '→' + h + ' · scr ' + (screen ? screen.width + 'x' + screen.height : '?') + ' · out ' + window.outerHeight + (standalone ? ' · ana ekran' : ' · tarayıcı');
     } catch (e) {}
   }
   // 1.3.4: Bas-konuş topuzunun çapı = sahne genişliğinin %34,3'ü (piksel), böylece her telefonda tam daire olur
@@ -67,7 +72,7 @@
     return on;
   }
   setTimeout(applyLite, 0);   // (store aşağıda tanımlanıyor)
-  fitApp(); window.addEventListener('resize', fitApp); window.addEventListener('orientationchange', () => setTimeout(fitApp, 250)); setTimeout(fitApp, 400);
+  fitApp(); window.addEventListener('resize', fitApp); window.addEventListener('orientationchange', () => setTimeout(fitApp, 250)); setTimeout(fitApp, 400); setTimeout(fitApp, 1500); document.addEventListener('visibilitychange', () => setTimeout(fitApp, 300));
   // ------------------------------------------------------------ küçük kayıt (telefonda)
   const store = {
     get(k, d) { try { const v = localStorage.getItem('ml_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
@@ -2204,6 +2209,7 @@
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
   $('#ver').textContent = CFG.VERSION;
+  setTimeout(() => { try { $('#ver').textContent = CFG.VERSION + ' · ' + (window.__fitInfo || ''); } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
     sheet('<h3>Bu telefondaki bilgilerin silinsin mi?</h3><p>Adın, kayıtlı odaların ve ayarların bu tarayıcıdan silinir.</p><button class="mbtn danger" id="wy">🗑 Hepsini sil</button><button class="mbtn raised" id="wn">Vazgeç</button>',

@@ -537,6 +537,6 @@ body.lite .bezel-lcd,body.lite .raised,body.lite .mbtn,body.lite .sumbig,body.li
 .tool.mt.on small{color:#ff6b60}
 /* 1.4.12: EKRANA TAM OTURMA: yükseklik hesaplanmaz, uygulama ekranın üstünden altına gerilir.
    (iPhone bazen ekran boyunu eksik bildiriyordu: altta boşluk kalıyor, alt tuşlar kesik görünüyordu) */
-#app,.chatwrap{top:0!important;bottom:0!important;height:auto!important;min-height:0!important}
+#app,.chatwrap{top:0!important;bottom:auto!important;height:var(--fullH,100%)!important;min-height:0!important}
 #pages{min-height:0}
 .nav{position:relative}
