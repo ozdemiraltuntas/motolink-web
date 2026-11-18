@@ -18,6 +18,39 @@
   window.addEventListener('resize', () => { fitKnob(); setTimeout(fitKnob, 150); }); window.addEventListener('orientationchange', () => setTimeout(fitKnob, 300));
   if (window.ResizeObserver) { try { new ResizeObserver(fitKnob).observe(document.querySelector('.stage')); } catch (e) {} }
   setTimeout(fitKnob, 300); setInterval(fitKnob, 4000);
+  // 1.4.7: oda sayfası kısa ekranlarda da SIĞSIN: alttaki Odadakiler / 📣 / 💬 tuşları hep görünür; gerekirse Bas-konuş sahnesi küçülür
+  function fitRoom() {
+    try {
+      const body = document.getElementById('roomBody'), st = document.querySelector('.stage');
+      if (!body || body.classList.contains('hidden') || !st || !body.clientHeight) return;
+      const full = body.clientWidth;
+      st.style.width = full + 'px'; st.style.marginLeft = 'auto'; st.style.marginRight = 'auto';
+      const over = body.scrollHeight - body.clientHeight;
+      if (over > 0) {
+        const h = st.offsetHeight;
+        const nh = Math.max(h * 0.5, h - over - 6);
+        st.style.width = Math.round(full * nh / h) + 'px';
+      }
+      fitKnob();
+    } catch (e) {}
+  }
+  window.addEventListener('resize', () => setTimeout(fitRoom, 120)); window.addEventListener('orientationchange', () => setTimeout(fitRoom, 350));
+  // 1.4.7: HAFİF MOD: eski / zayıf telefonlarda parlama, gölge, kayan yazı ve sık güncellenen efektler kapanır
+  function autoLite() {
+    const ua = navigator.userAgent || '';
+    const m = ua.match(/OS (\d+)_\d+.*like Mac OS X/);
+    const oldIos = m && +m[1] < 16;
+    const fewCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+    const lowMem = navigator.deviceMemory && navigator.deviceMemory <= 3;
+    return !!(oldIos || fewCores || lowMem);
+  }
+  function applyLite() {
+    const pref = store.get('lite', null);   // null: otomatik
+    const on = pref === null ? autoLite() : !!pref;
+    document.body.classList.toggle('lite', on);
+    return on;
+  }
+  setTimeout(applyLite, 0);   // (store aşağıda tanımlanıyor)
   fitApp(); window.addEventListener('resize', fitApp); window.addEventListener('orientationchange', () => setTimeout(fitApp, 250)); setTimeout(fitApp, 400);
   // ------------------------------------------------------------ küçük kayıt (telefonda)
   const store = {
@@ -174,6 +207,7 @@
   let page = 'home';
   function go(p) {
     page = p;
+    if (p === 'room') setTimeout(fitRoom, 60);
     $$('.page').forEach((x) => x.classList.toggle('on', x.id === 'p-' + p));
     $$('#nav .it').forEach((x) => x.classList.toggle('on', x.dataset.p === (p === 'rooms' || p === 'routes' || p === 'friends' || p === 'plan' ? 'home' : p)));
     if (p === 'rooms') { renderHome(); refreshCounts(); }
@@ -1048,12 +1082,12 @@
     S.room.remoteParticipants.forEach((p) => { if (p.isSpeaking) rl = Math.max(rl, Math.max(p.audioLevel || 0, 0.2)); });
     const on = rl > 0.01;
     if (on !== remoteOn) { remoteOn = on; ptt.classList.toggle('rx', on); ring.classList.toggle('rxglow', on); }
-    if (on) {
+    if (on && !document.body.classList.contains('lite')) {
       ring.style.setProperty('--rx', Math.min(1, rl * 2).toFixed(2));
       ring.style.setProperty('--tc', S.live ? '#ff3b3b' : '#46e38a');
       $$('#ptt .wave i').forEach((b, i) => { const mid = 1 - Math.abs(i - 3) / 3 * 0.55; b.style.height = Math.round(6 + 30 * mid * (0.35 + 0.65 * Math.min(1, rl * 2)) * (0.55 + 0.45 * Math.random())) + 'px'; });
     }
-    if (S.micOn) {
+    if (S.micOn && !document.body.classList.contains('lite')) {
       const lv = Math.min(1, (S.room.localParticipant.audioLevel || 0) * 2.5);
       ring.style.setProperty('--lv', lv.toFixed(2));
     }
@@ -1087,7 +1121,9 @@
     r.remoteParticipants.forEach((p) => list.push({ id: p.identity, name: dispName(p.identity, p.name), me: false, speaking: p.isSpeaking, mode: S.modes[p.identity] || 'ptt' }));
     return list;
   }
+  let fitT = null;
   function renderRoom() {
+    clearTimeout(fitT); fitT = setTimeout(fitRoom, 80);
     const inRoom = !!S.room;
     $('#roomEmpty').classList.toggle('hidden', inRoom);
     $('#roomBody').classList.toggle('hidden', !inRoom);
@@ -1215,9 +1251,21 @@
       b.querySelector('#shInv').onclick = () => { closeSheet(); shareInvite(); };
     });
   };
+  // 1.4.7: açıklamalı davet mesajı (Android ve iPhone için ayrı bağlantılar; hepsi https:// ile tıklanabilir)
+  function inviteText(code, title, locked) {
+    const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
+    const c = encodeURIComponent(code);
+    return '🏍 MotoLink: "' + (title || code) + '" odasına davetlisin!\n\n' +
+      '📱 Android:\n👉 Katılmak için dokun: ' + base + 'katil.html?c=' + c + '\n' +
+      'Uygulama yüklüyse açılır ve odaya girer. Yüklü değilse indirme sayfası açılır: oradaki MotoLink …apk dosyasını indirip kur, sonra bu bağlantıya tekrar dokun.\n' +
+      '⬇ Uygulamayı indir: https://github.com/ozdemiraltuntas/motolink-web/releases/latest\n\n' +
+      '🍏 iPhone:\n👉 Katılmak için dokun (Safari\'de açılır): ' + base + '?c=' + c + '\n' +
+      'Kalıcı uygulama gibi kullanmak için Safari\'de alttaki Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n\n' +
+      '🔑 Oda kodu: ' + code + (locked ? '\nBu oda şifreli, şifreyi oda sahibinden iste.' : '');
+  }
   async function shareInvite() {
     if (!S.room) return;
-    const text = 'MotoLink odama katıl: ' + S.title + '\nOda kodu: ' + S.code + '\n' + inviteUrl(S.code);
+    const text = inviteText(S.code, S.title, S.locked);
     try { if (navigator.share) { await navigator.share({ title: 'MotoLink', text }); return; } } catch (e) { return; }
     try { await navigator.clipboard.writeText(text); toast('Davet yazısı kopyalandı.'); } catch (e) { toast(text, 8000); }
   };
@@ -1972,6 +2020,13 @@
       if (['noise', 'echo', 'agc'].includes(k) && S.room) toast('Ses filtresi bir sonraki oda girişinde uygulanır.');
     };
   });
+  // 1.4.7: Hafif mod (otomatik / açık / kapalı)
+  (function () {
+    const c = $('#optLite'); if (!c) return;
+    c.checked = store.get('lite', null) === null ? autoLite() : !!store.get('lite', false);
+    $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
+    c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
+  })();
   $('#ver').textContent = CFG.VERSION;
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {

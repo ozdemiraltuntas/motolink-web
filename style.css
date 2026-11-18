@@ -494,3 +494,16 @@ body:not(.lcd-olive):not(.lcd-red) .lkey{background:linear-gradient(#323a36,#1c2
 #people{z-index:880}
 .mbtn.smopt{display:block;text-align:center;line-height:1.25;padding-top:10px;padding-bottom:10px;height:auto}.mbtn.smopt small{font-weight:600;font-size:11.5px;opacity:.9}
 #people .bezel-lcd{height:auto!important;aspect-ratio:auto!important;flex:none}#people .lcdx{min-height:0!important;height:auto!important;padding:8px 14px!important}
+
+/* 1.4.7: kısa ekranlarda alt boşluk yer kaplamasın (sahne JS ile küçülür) */
+.rscroll{min-height:0!important;flex:1 1 0}
+/* 1.4.7: HAFİF MOD: ağır efektler kapalı */
+body.lite *{text-shadow:none!important;animation:none!important;transition:none!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+body.lite .stage .groove.glow,body.lite .stage .groove.rxglow{box-shadow:0 0 0 3px var(--tc,#46e38a)!important}
+body.lite .wave{display:none!important}
+body.lite .lcdx{box-shadow:none!important}
+body.lite .bezel-lcd,body.lite .raised,body.lite .mbtn,body.lite .sumbig,body.lite .cbanner{box-shadow:none!important}
+/* 1.4.7: sahne küçülünce topuzun yazıları da küçülsün (taşmasın) */
+.stage .knobbig b{font-size:min(13.5px, calc(var(--kd) * .105))!important}
+.stage .knobbig #pttHint{font-size:min(10.5px, calc(var(--kd) * .08))!important}
+.stage .knobbig .mi{font-size:min(26px, calc(var(--kd) * .2))!important}
