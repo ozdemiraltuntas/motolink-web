@@ -2652,7 +2652,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.19'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.20'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
