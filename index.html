@@ -14,7 +14,7 @@
 <link rel="icon" href="img/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="lib/leaflet.css">
-<link rel="stylesheet" href="style.css?v=1.4.17">
+<link rel="stylesheet" href="style.css?v=1.4.18">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Mono:wdth,wght@62.5..100,700..900&display=swap" rel="stylesheet">
 </head>
@@ -125,26 +125,34 @@
       <div id="roomListHead" class="subhead hidden" style="margin-top:8px"><h3>Kayıtlı odalar · dokun, gir</h3></div>
       <div id="recent2" class="list"></div>
       <div id="roomBody" class="hidden">
-        <div class="rh">
+        <div class="rh xhide">
           <div id="rLogo" class="rlogo">M</div>
-          <div class="rht">
-            <h2 id="rTitle" class="fit">Oda</h2>
-            <small id="rSub">0 sürücü</small>
-          </div>
+          <div class="rht"><h2 id="rTitle" class="fit">Oda</h2><small id="rSub">0 sürücü</small></div>
           <button id="adminBtn" class="rbtn raised hidden" aria-label="Oda yönetimi">🛡</button>
-          <button id="chatBtn" class="rbtn raised" aria-label="Sohbet">💬<i id="chatBadge" class="cbadge hidden">0</i></button>
           <button id="qrBtn" class="rbtn raised" aria-label="QR kod">▦</button>
           <button id="shareBtn" class="rbtn raised" aria-label="Davet et">⤴</button>
         </div>
 
         <input type="file" id="photoIn" accept="image/*" hidden>
 
-        <div class="bezel-lcd rlcd"><div class="lcdx">
-          <div class="lrow" id="rlTop"><span id="rlStatus">ODADASIN</span><span id="rlRec" class="lrec hidden">● KAYIT</span><span id="rlClock">--:--</span></div>
+        <div class="bezel-lcd rlcd"><div class="lcdx rl2">
+          <div class="lrow" id="rlTop"><span id="rlStatus">ODA KODU</span><span id="rlRec" class="lrec hidden">● KAYIT</span><span class="lsig"><i class="bars"><u></u><u></u><u></u><u></u></i> ANA · <span id="rlLock"></span>👥 <span id="rlPpl">1/50</span></span></div>
+          <div class="rtitle">
+            <div id="rLogo2" class="rlogo2">M</div>
+            <div class="rtt"><h1 id="rlName" class="greet">ODA</h1><small id="rlCount">0 SÜRÜCÜ</small></div>
+            <div class="rbs"><button id="lAdmin" class="lkey hidden" aria-label="Oda yönetimi"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 2l8 3v6c0 5-3.4 9.4-8 11-4.6-1.6-8-6-8-11V5z" fill="currentColor"/></svg><b>YÖNET</b></button><button id="lShare" class="lkey" aria-label="Paylaş"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M14 4l7 6-7 6v-4c-5 0-8 1.5-10 5 .5-6 4-9 10-9.5z" fill="currentColor"/></svg><b>PAYLAŞ</b></button><button id="roomRecBtn" class="lreckey hidden" aria-label="Konuşmaları kaydet">⏺ KAYIT</button></div>
+          </div>
           <div class="recstrip hidden" id="recStrip"><span id="rsName">● KAYIT YAPILIYOR</span><b id="rsTime">00:00</b></div>
-          <h1 id="rlName" class="greet">ODA</h1>
-          <div id="talking" class="tkl"><span id="talkingText">Kimse konuşmuyor</span></div>
-          <div class="lrow foot"><span id="rlCount">0 SÜRÜCÜ</span><button id="roomRecBtn" class="lreckey hidden" aria-label="Konuşmaları kaydet">⏺ KAYIT</button><span id="rlMode">BAS-KONUŞ</span></div>
+          <div class="kanal"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-3.1A7 7 0 0 0 19 11z" fill="currentColor"/></svg><div class="kt"><small>KANAL</small><b id="lcdChan">SESSİZ</b></div><i class="dash" id="lcdLvl"></i></div>
+          <div class="callline" id="lcdCall"></div>
+          <div class="rradio">
+            <button id="lrPrev" class="lsq" aria-label="Önceki kanal"></button>
+            <div id="lrTap" class="rr"><b id="lrName">♪ RADYO</b><small id="lrSub">KAPALI · AÇMAK İÇİN DOKUN</small></div>
+            <button id="lrPlay" class="lsq" aria-label="Çal / durdur"></button>
+            <button id="lrNext" class="lsq" aria-label="Sonraki kanal"></button>
+          </div>
+          <div class="lrow foot"><span id="rlMode">BAS-KONUŞ</span><span id="rlRoute">🔊 HOPARLÖR</span><span id="rlLoc">📍 KAPALI</span><span id="rlClock">--:--</span></div>
+          <div id="talking" class="tkl xhide"><span id="talkingText">Kimse konuşmuyor</span></div>
         </div></div>
 
         <div class="panel inset modes">
@@ -153,7 +161,7 @@
           <button class="sw" data-mode="live">Sürekli Açık</button>
         </div>
 
-        <div id="radioBar" class="panel inset radio hidden">
+        <div id="radioBar" class="panel inset radio hidden xhide">
           <div class="lcd"><span id="radioText">♪</span></div>
           <button id="radioStop" class="sq raised" aria-label="Radyoyu kapat">■</button>
         </div>
@@ -161,6 +169,12 @@
         <div id="audioUnlock" class="unlock hidden">🔊 Sesi açmak için buraya dokun</div>
 
         <div class="stage">
+          <div id="gearHalo" class="gearhalo"></div>
+          <img id="gearImg" class="gearimg" src="img/ring.webp" alt="" draggable="false">
+          <div id="gearTouch" class="geartouch" aria-label="Ses düğmesi"></div>
+          <button id="wL" class="wedge wl" aria-label="Kulaklık"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0-9 9v7a2 2 0 0 0 2 2h2v-8H5v-1a7 7 0 0 1 14 0v1h-2v8h2a2 2 0 0 0 2-2v-7a9 9 0 0 0-9-9z" fill="currentColor"/></svg><b id="wLt">Kulaklık</b></button>
+          <button id="wR" class="wedge wr" aria-label="Hoparlör"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z" fill="currentColor"/></svg><b id="wRt">Hoparlör</b></button>
+          <div id="gearHud" class="gearhud hidden"></div>
           <div class="bezel"><div id="ring" class="groove">
             <button id="ptt" class="knobbig">
               <span id="pttIcon" class="mi">🎙</span>
@@ -177,7 +191,7 @@
         <!-- 1.4.5: Android'deki gibi altta Odadakiler tuşu + 📣 + 💬 -->
         <div class="pbar2">
           <button id="peopleBtn" class="pbtn raised"><span class="pic">👥</span><b>Odadakiler</b><span id="pAvs" class="avs"></span><span class="pgo">›</span></button>
-          <button id="summonBtn" class="sumbig" aria-label="Odaya çağır">📣</button>
+          <button id="summonBtn" class="sumbig raised" aria-label="Odaya çağır"><svg viewBox="0 0 24 24" width="26" height="26"><path d="M2 9h5l9-5v16l-9-5H2z" fill="#ff3b3b"/><rect x="4" y="14" width="4" height="7" rx="1.2" fill="#ff3b3b"/><path d="M18.5 8.5a5 5 0 0 1 0 7M20.8 6a8.4 8.4 0 0 1 0 12" stroke="#ff3b3b" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></button>
           <button id="chatBtn2" class="chat2 raised" aria-label="Mesajlar">💬<i id="chatBadge2" class="cbadge hidden">0</i></button>
         </div>
       </div>
@@ -225,9 +239,9 @@
           <div class="gd vuh hidden" id="vuHint">🎙 iPhone'da konuşurken müzik kısılır</div>
         </div>
         <div class="keys">
-          <button id="mPrev" class="kbtn raised">⏮</button>
-          <button id="mPlay" class="kbtn raised amberText">▶</button>
-          <button id="mNext" class="kbtn raised">⏭</button>
+          <button id="mPrev" class="kbtn raised amberText" aria-label="Önceki"></button>
+          <button id="mPlay" class="kbtn raised amberText" aria-label="Çal"></button>
+          <button id="mNext" class="kbtn raised amberText" aria-label="Sonraki"></button>
         </div>
         <div class="volrow" id="volRow"><span>🔈</span><input id="vol" type="range" min="0" max="100" value="80"><span>🔊</span></div>
         <div class="small hidden" id="volIos">🔊 Müzik sesini telefonun yan tuşlarıyla ayarla.</div>
@@ -244,7 +258,7 @@
 
     <!-- 5 · AYARLAR -->
     <section id="p-set" class="page">
-      <div class="verbox raised"><b id="verBig">web 1.4.17</b><small id="verFit"></small></div>
+      <div class="verbox raised"><b id="verBig">web 1.4.18</b><small id="verFit"></small></div>
       <div class="sec raised">
         <h4>Sürücü</h4>
         <div class="small">Adın odada ve haritada görünür.</div>
@@ -334,7 +348,7 @@
 <script src="lib/livekit-client.umd.js"></script>
 <script src="lib/leaflet.js"></script>
 <script src="lib/qrcode.js"></script>
-<script src="config.js?v=1.4.17"></script>
-<script src="app.js?v=1.4.17"></script>
+<script src="config.js?v=1.4.18"></script>
+<script src="app.js?v=1.4.18"></script>
 </body>
 </html>

@@ -627,7 +627,7 @@
       const el = track.attach();
       if (RK.mr) roomRecAddTrack(track.mediaStreamTrack);   // 1.4.1: kayıt sürerken yeni gelen ses de kayda girsin
       el.classList.add('lk'); el.setAttribute('playsinline', ''); el.style.display = 'none';
-      document.body.appendChild(el);
+      document.body.appendChild(el); try { applyVoiceVol(); } catch (e) {}
     });
     room.on(E.TrackUnsubscribed, (track) => { try { track.detach().forEach((el) => el.remove()); } catch (e) {} });
     room.on(E.ParticipantConnected, (p) => {
@@ -698,7 +698,8 @@
   function nameOf(p) { return dispName(p && p.identity, p && p.name, 'Bir sürücü'); }
 
   function onData(payload, participant) {
-    if (!payload || !payload.length || payload[0] !== 123) return; // { ile başlamıyorsa (müzik ses paketi) geç
+    if (payload && payload.length > 2 && payload[0] === 1 && payload[1] === 0xA5) { try { phonePacket(payload); } catch (e) {} return; }   // 1.4.18: Android'in telefon müziği paketi
+    if (!payload || !payload.length || payload[0] !== 123) return; // { ile başlamıyorsa geç
     let j; try { j = JSON.parse(dec.decode(payload)); } catch (e) { return; }
     const id = participant && participant.identity;
     const name = nameOf(participant);
@@ -970,7 +971,6 @@
     }
     chRender();
   }
-  $('#chatBtn').onclick = () => chOpen(null);
   $('#chatBack').onclick = () => { if (CH.to) chOpen(null); else chClose(); };
   $('#chatForm').onsubmit = (e) => { e.preventDefault(); const inp = $('#chatIn'); if (chSend(inp.value)) inp.value = ''; };
   $('#chatQuick').innerHTML = CH_QUICK.map((q) => '<button type="button">' + q + '</button>').join('');
@@ -1103,6 +1103,7 @@
     $('#pttIcon').textContent = ic; $('#pttTitle').textContent = t; $('#pttHint').textContent = h;
     try { $('#ptt2Icon').textContent = ic; $('#ptt2Title').textContent = t; $('#ptt2Hint').textContent = h; } catch (e) {}
     fit($('#pttTitle'), 17, 11);
+    try { if (radioWant && !PM.on && player.paused && player.src) player.play().catch(() => {}); } catch (e) {}
     const ring = $('#ring');
     ring.classList.toggle('glow', S.micOn);
     ring.style.setProperty('--tc', S.live ? '#ff3b3b' : '#46e38a');
@@ -1187,19 +1188,30 @@
     $('#rLogo').textContent = initial(S.title);
     $('#rTitle').textContent = S.title;
     try {
-      $('#rlName').textContent = String(S.title || S.code || '').toLocaleUpperCase('tr-TR');
-      $('#rlCount').textContent = list.length + ' SÜRÜCÜ' + (S.permanent ? ' · KALICI' : '');
+      const cap = (S.cap === undefined ? CFG.MAX_RIDERS : S.cap);
+      $('#rLogo2').textContent = initial(S.title);
+      $('#rlName').textContent = String(S.title || S.code || '').toLocaleUpperCase('tr-TR') + (S.locked ? ' 🔒' : '');
+      $('#rlCount').textContent = list.length + '/' + (cap > 0 ? cap : '∞') + ' SÜRÜCÜ' + (S.permanent ? ' · KALICI' : '');
       $('#rlMode').textContent = { ptt: 'BAS-KONUŞ', open: 'ELLER SERBEST', live: 'SÜREKLİ AÇIK' }[currentMode()];
-      $('#rlStatus').textContent = (S.locked ? '🔒 ' : '') + 'ODADASIN · ' + S.code;
+      $('#rlStatus').textContent = 'ODA KODU · ' + S.code;
+      $('#rlLock').textContent = S.locked ? '🔒 · ' : '';
+      $('#rlPpl').textContent = list.length + '/' + (cap > 0 ? cap : '∞');
+      $('#rlLoc').textContent = '📍 ' + ({ off: 'KAPALI', saver: 'TASARRUF', live: 'CANLI' }[S.locMode] || 'KAPALI');
       const n = new Date(); $('#rlClock').textContent = String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0');
+      routeUi();
     } catch (e) {}
-    $('#rSub').textContent = list.length + ' / ' + ((S.cap === undefined ? CFG.MAX_RIDERS : S.cap) > 0 ? (S.cap === undefined ? CFG.MAX_RIDERS : S.cap) : '∞') + ' sürücü' + (S.permanent ? ' · kalıcı oda' : '') + (S.title !== S.code ? ' · ' + S.code : '') + (S.locked ? ' · 🔒' : '');
-    $('#adminBtn').classList.toggle('hidden', !amAdmin());
+    $('#rSub').textContent = list.length + ' sürücü';
+    $('#adminBtn').classList.toggle('hidden', !amAdmin()); try { $('#lAdmin').classList.toggle('hidden', !amAdmin()); } catch (e) {}
     try { roomRecUi(); } catch (e) {}
     const cls = { ptt: 'c-green', open: 'c-orange', live: 'c-red' };
     $$('.modes .sw').forEach((b) => { b.className = 'sw ' + cls[b.dataset.mode] + (b.dataset.mode === currentMode() ? ' on' : ''); });
     const talking = list.filter((x) => x.speaking).map((x) => x.me ? 'Sen' : x.name);
     $('#talking').classList.toggle('on', talking.length > 0);
+    try {
+      $('#lcdChan').textContent = talking.length ? talking.map((x) => String(x).toLocaleUpperCase('tr-TR')).join(', ') : 'SESSİZ';
+      const cn = list.filter((x) => S.onCall.has(x.id)).map((x) => String(x.name).toLocaleUpperCase('tr-TR'));
+      const cl = $('#lcdCall'); cl.textContent = cn.length ? '📞 ' + cn.join(', ') + ' TELEFONDA · DUYMUYOR' : '';
+    } catch (e) {}
     $('#talkingText').textContent = talking.length ? '🎙 ' + talking.join(', ') + (talking.length > 1 || talking[0] === 'Sen' ? ' konuşuyor' : ' konuşuyor') : 'Kimse konuşmuyor';
     const me = S.locs[S.id];
     const ridersChanged = setHtml('#riders', list.map((x) => {
@@ -1305,8 +1317,9 @@
     if (!S.room) return;
     sheet('<h3>Paylaş</h3><button class="mbtn raised" id="shInv">👥 Arkadaşını davet et</button>' +
       '<p>📷 Fotoğraf göndermek için 💬 Mesajlar ekranındaki kamera tuşunu kullan.</p>' +
-      '<button class="mbtn raised" id="shNo">Kapat</button>', (b) => {
+      '<button class="mbtn raised" id="shQr">▦ QR kodu göster</button><button class="mbtn raised" id="shNo">Kapat</button>', (b) => {
       b.querySelector('#shNo').onclick = closeSheet;
+      b.querySelector('#shQr').onclick = () => { closeSheet(); setTimeout(() => $('#qrBtn').click(), 60); };
       b.querySelector('#shInv').onclick = () => { closeSheet(); shareInvite(); };
     });
   };
@@ -2219,6 +2232,120 @@
     speak('Dikkat! ' + name + ' acil yardım istiyor. ' + activeSos[id].reason);
   }
 
+  // ------------------------------------------------------------ 1.4.18: simgeler, ses düğmesi (dişli çark), kulaklık / hoparlör
+  const IC_PLAY = '<svg viewBox="0 0 24 24" width="26" height="26"><path d="M7 4v16l13-8z" fill="currentColor"/></svg>';
+  const IC_STOP = '<svg viewBox="0 0 24 24" width="26" height="26"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>';
+  const IC_PREV = '<svg viewBox="0 0 24 24" width="26" height="26"><path d="M17 4v16L6 12z" fill="currentColor"/></svg>';
+  const IC_NEXT = '<svg viewBox="0 0 24 24" width="26" height="26"><path d="M3 5v14l9-7zM12 5v14l9-7z" fill="currentColor"/></svg>';
+  $('#mPrev').innerHTML = IC_PREV; $('#mNext').innerHTML = IC_NEXT; $('#mPlay').innerHTML = IC_PLAY;
+  $('#lrPrev').innerHTML = IC_PREV; $('#lrNext').innerHTML = IC_NEXT; $('#lrPlay').innerHTML = IC_PLAY;
+  function radioLcd(title, tag, sub, on) {
+    try {
+      $('#lrName').textContent = '♪ ' + (on || (title && title !== 'KAPALI') ? String(title).toLocaleUpperCase('tr-TR') : 'RADYO');
+      $('#lrSub').textContent = on ? (sharedRadio ? 'ODADA ÇALIYOR · ORTAK' : 'ÇALIYOR · SADECE SENDE') : 'KAPALI · AÇMAK İÇİN DOKUN';
+      $('#lrPlay').innerHTML = on ? IC_STOP : IC_PLAY;
+    } catch (e) {}
+  }
+  // Ses düğmesi: dişli çarkı parmakla çevir → oda seslerinin düzeyi (iPhone'da sistem sesi değiştirilemez: en sona kıs = sesi kapat)
+  let rvol = +store.get('rvol', 100), gearAng = 0;
+  function applyVoiceVol() {
+    $$('audio.lk').forEach((a) => { try { if (isIOS) a.muted = rvol <= 0; else { a.muted = false; a.volume = Math.max(0, Math.min(1, rvol / 100)); } } catch (e) {} });
+  }
+  (function gearInit() {
+    const t = $('#gearTouch'), img = $('#gearImg'), halo = $('#gearHalo'), hud = $('#gearHud');
+    if (!t) return;
+    let act = false, last = 0, acc = 0, hideT = null;
+    const ang = (e) => { const r = t.getBoundingClientRect(); return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2)) * 180 / Math.PI; };
+    const show = () => {
+      halo.style.setProperty('--gv', rvol / 100); halo.classList.add('on');
+      hud.textContent = rvol <= 0 ? '🔇 SES KAPALI' : '🔊 SES %' + rvol; hud.classList.remove('hidden');
+      clearTimeout(hideT); hideT = setTimeout(() => { halo.classList.remove('on'); hud.classList.add('hidden'); }, 1800);
+    };
+    t.addEventListener('pointerdown', (e) => {
+      const r = t.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+      const rr = Math.hypot(dx, dy) / (r.width / 2) * 350;
+      act = rr >= 205 && rr <= 350; if (!act) return;
+      try { t.setPointerCapture(e.pointerId); } catch (x) {}
+      last = ang(e); acc = 0; show(); e.preventDefault();
+    });
+    t.addEventListener('pointermove', (e) => {
+      if (!act) return;
+      const a = ang(e); let d = a - last; if (d > 180) d -= 360; if (d < -180) d += 360; last = a;
+      gearAng += d; acc += d; img.style.setProperty('--ga', gearAng + 'deg');
+      let ch = false;
+      while (acc >= 18) { acc -= 18; rvol = Math.min(100, rvol + 8); ch = true; }
+      while (acc <= -18) { acc += 18; rvol = Math.max(0, rvol - 8); ch = true; }
+      if (ch) { store.set('rvol', rvol); applyVoiceVol(); try { navigator.vibrate && navigator.vibrate(6); } catch (x) {} }
+      show(); e.preventDefault();
+    });
+    const end = () => { act = false; };
+    t.addEventListener('pointerup', end); t.addEventListener('pointercancel', end);
+  })();
+  // Kulaklık / Hoparlör (Android'deki gibi; seçiliyken tekrar basınca otomatiğe döner)
+  let routeSel = store.get('route', 'auto');
+  function routeUi() {
+    try {
+      $('#wL').classList.toggle('on', routeSel === 'headset'); $('#wR').classList.toggle('on', routeSel === 'speaker');
+      $('#rlRoute').textContent = routeSel === 'headset' ? '🎧 KULAKLIK' : routeSel === 'speaker' ? '🔊 HOPARLÖR' : '🔊 OTOMATİK';
+      $('#wLt').textContent = (routeSel === 'headset' ? '✓ ' : '') + 'Kulaklık'; $('#wRt').textContent = (routeSel === 'speaker' ? '✓ ' : '') + 'Hoparlör';
+    } catch (e) {}
+  }
+  async function applyRoute(say) {
+    let ok = false;
+    try {
+      if (player.setSinkId && navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+        const ds = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audiooutput');
+        const re = routeSel === 'speaker' ? /speaker|hoparl/i : /head|kulak|bluetooth|wired|earpiece|ahize/i;
+        const pick = routeSel === 'auto' ? { deviceId: '' } : ds.find((d) => re.test(d.label));
+        if (pick) { const els = $$('audio.lk'); els.push(player); for (const a of els) { try { await a.setSinkId(pick.deviceId); } catch (e) {} } ok = true; }
+      }
+    } catch (e) {}
+    if (say && routeSel !== 'auto' && !ok) toast('ℹ️ Bu telefonda ses çıkışını telefon kendisi seçer (kulaklık takılıysa kulaklıktan gelir).', 3500);
+  }
+  $('#wL').onclick = () => { routeSel = routeSel === 'headset' ? 'auto' : 'headset'; store.set('route', routeSel); routeUi(); applyRoute(true); };
+  $('#wR').onclick = () => { routeSel = routeSel === 'speaker' ? 'auto' : 'speaker'; store.set('route', routeSel); routeUi(); applyRoute(true); };
+  routeUi();
+  // Telefondan paylaşılan müzik (Android ses paketleri: AAC-LC 44,1 kHz mono, 2 bayt uzunlukla art arda)
+  const PM = { on: false, dec: null, ctx: null, gain: null, next: 0, ts: 0, q: [] };
+  function phoneStart() {
+    phoneStop(); const c = audioCtx(); if (!c) return;
+    PM.on = true; PM.ctx = c; PM.next = 0; PM.ts = 0; PM.q = [];
+    PM.gain = c.createGain(); PM.gain.gain.value = isIOS ? 1 : base0(); PM.gain.connect(c.destination);
+    if (window.AudioDecoder && window.EncodedAudioChunk) {
+      try {
+        PM.dec = new AudioDecoder({ output: (ad) => { try { const n = ad.numberOfFrames, arr = new Float32Array(n); ad.copyTo(arr, { planeIndex: 0, format: 'f32-planar' }); const b = c.createBuffer(1, n, ad.sampleRate); b.copyToChannel(arr, 0); ad.close(); phonePlay(b); } catch (e) {} }, error: () => {} });
+        PM.dec.configure({ codec: 'mp4a.40.2', sampleRate: 44100, numberOfChannels: 1, description: new Uint8Array([0x12, 0x08]) });
+      } catch (e) { PM.dec = null; }
+    }
+  }
+  function phoneStop() { PM.on = false; try { PM.dec && PM.dec.close(); } catch (e) {} PM.dec = null; try { PM.gain && PM.gain.disconnect(); } catch (e) {} PM.gain = null; PM.q = []; }
+  function phonePlay(b) {
+    const c = PM.ctx; if (!c || !PM.on) return;
+    const s = c.createBufferSource(); s.buffer = b; s.connect(PM.gain);
+    let t = PM.next; if (t < c.currentTime + 0.02) t = c.currentTime + 0.35;   // kopma olursa 0,35 sn ön tampon
+    s.start(t); PM.next = t + b.duration;
+  }
+  function adts(f) {
+    const n = f.length + 7, h = new Uint8Array(7);
+    h[0] = 0xFF; h[1] = 0xF1; h[2] = 0x50; h[3] = 0x40 | ((n >> 11) & 3); h[4] = (n >> 3) & 255; h[5] = ((n & 7) << 5) | 0x1F; h[6] = 0xFC;
+    const o = new Uint8Array(n); o.set(h, 0); o.set(f, 7); return o;
+  }
+  function phonePacket(data) {
+    if (!PM.on) return;
+    let pos = 2; const frames = [];
+    while (pos + 2 <= data.length) { const len = (data[pos] << 8) | data[pos + 1]; pos += 2; if (len <= 0 || pos + len > data.length) break; frames.push(data.slice(pos, pos + len)); pos += len; }
+    if (PM.dec) {
+      frames.forEach((f) => { try { PM.dec.decode(new EncodedAudioChunk({ type: 'key', timestamp: PM.ts, data: f })); PM.ts += 23220; } catch (e) {} });
+      return;
+    }
+    // yedek yol (WebCodecs yoksa): ADTS'e sarıp parça parça çöz
+    frames.forEach((f) => PM.q.push(adts(f)));
+    if (PM.q.length >= 10) {
+      const parts = PM.q.splice(0), tot = parts.reduce((a, p) => a + p.length, 0), buf = new Uint8Array(tot); let o = 0; parts.forEach((p) => { buf.set(p, o); o += p.length; });
+      try { const pr = PM.ctx.decodeAudioData(buf.buffer, (b) => phonePlay(b), () => {}); if (pr && pr.catch) pr.catch(() => {}); } catch (e) {}
+    }
+  }
+
   // ------------------------------------------------------------ radyo
   const player = new Audio();
   player.setAttribute('playsinline', '');
@@ -2270,13 +2397,14 @@
   $('#duckLv').oninput = (e) => { duckLv = +e.target.value; store.set('duckLv', duckLv); $('#duckPct').textContent = '%' + duckLv; duckTick(true); };
   function someoneTalking() {
     const r = S.room; if (!r) return false;
-    let t = !!S.micOn;
+    let t = !!S.micOn && (currentMode() === 'ptt' || !!r.localParticipant.isSpeaking);   // 1.4.18: eller serbest/sürekli açıkta mikrofon hep açık: sadece GERÇEKTEN konuşunca say
     if (!t) r.remoteParticipants.forEach((p) => { if (p.isSpeaking) t = true; });
     return t;
   }
   function duckTick(now) {
     if (someoneTalking()) lastTalkAt = Date.now();
     const ducked = duckOn && S.room && Date.now() - lastTalkAt < 900;   // konuşma bitince kısa bir süre sonra geri açılır
+    if (PM.gain) { try { PM.gain.gain.value = ducked ? (isIOS ? 0 : base0() * duckLv / 100) : (isIOS ? 1 : base0()); } catch (e) {} }
     if (isIOS) { player.muted = !!ducked; return; }   // iPhone'da ses seviyesi ayarlanamaz: konuşmada sus, sonra geri gel
     const base = (+store.get('vol', 80)) / 100;
     const target = ducked ? base * duckLv / 100 : base;
@@ -2284,7 +2412,10 @@
     const nv = now ? target : (Math.abs(target - cur) < 0.06 ? target : cur + Math.sign(target - cur) * (target < cur ? 0.15 : 0.06));
     try { player.volume = Math.max(0, Math.min(1, nv)); } catch (e) {}
   }
-  setInterval(() => { if (radioWant || player.muted) duckTick(false); }, 150);
+  const base0 = () => (+store.get('vol', 80)) / 100;
+  setInterval(() => { if (radioWant || player.muted || PM.on) duckTick(false); }, 150);
+  // 1.4.18: iPhone mikrofon açılınca müziği durdurabiliyor: durduysa kendiliğinden devam ettir
+  player.addEventListener('pause', () => { if (radioWant && !PM.on) setTimeout(() => { if (radioWant && !PM.on && player.paused && player.src) player.play().catch(() => {}); }, 350); });
   // Hazır kanallar (Android uygulamasındaki radyolar.m3u ile aynı) — sunucuya ulaşılamasa bile liste boş kalmasın
   const BUILTIN = [
     ['Alem FM', 'https://turkmedya.radyotvonline.com/turkmedya/alemfm.stream/playlist.m3u8', 'Pop'],
@@ -2403,7 +2534,7 @@
   function stopRadio(silent) {
     // 1.4.9: odada ortak radyo çalarken ■ herkeste durdurur (Android ile aynı)
     if (!silent && sharedRadio && S.room) publish({ t: 'music', a: 'stop' });
-    radioWant = false;
+    radioWant = false; phoneStop();
     try { if (hls) { hls.destroy(); hls = null; } } catch (e) {}
     player.pause(); player.removeAttribute('src'); try { player.load(); } catch (e) {}
     sharedRadio = null; $('#radioBar').classList.add('hidden');
@@ -2413,10 +2544,12 @@
   }
   function setNow(title, tag, sub, on) {
     $('#nowTitle').textContent = String(title).toLocaleUpperCase('tr-TR'); $('#nowTag').textContent = tag; $('#nowSub').textContent = sub;
-    $('#mPlay').textContent = on ? '■' : '▶';
+    $('#mPlay').innerHTML = on ? IC_STOP : IC_PLAY; radioLcd(title, tag, sub, on);
     $('#vu').classList.toggle('on', on);
     fit($('#nowTitle'), 24, 14);
   }
+  $('#lrPlay').onclick = () => $('#mPlay').click(); $('#lrNext').onclick = () => $('#mNext').click(); $('#lrPrev').onclick = () => $('#mPrev').click(); $('#lrTap').onclick = () => go('music');
+  $('#lAdmin').onclick = () => $('#adminBtn').click(); $('#lShare').onclick = () => $('#shareBtn').click();
   $('#mPlay').onclick = () => { if (!player.paused && player.src) stopRadio(); else if (stIndex >= 0) playStation(stIndex); else if (stations.length) playStation(0); };
   $('#mNext').onclick = () => { if (stations.length) playStation((stIndex + 1) % stations.length); };
   $('#mPrev').onclick = () => { if (stations.length) playStation((stIndex - 1 + stations.length) % stations.length); };
@@ -2426,6 +2559,14 @@
       // "Sadece ben" modunda kendi kanalım çalıyorsa odanınki onu bozmaz
       if (!mShare && !sharedRadio && radioWant && !player.paused) { toast('🎵 Odada "' + (j.title || 'radyo') + '" açıldı. Dinlemek için Müzik > Odayla paylaş.'); return; }
       sharedRadio = { url: j.url, title: j.title || 'Radyo', by: j.by || '' };
+      if (j.url === 'phone://') {   // 1.4.18: Android'de "telefondan müzik paylaş": ses paketlerini çözüp çal
+        try { if (hls) { hls.destroy(); hls = null; } player.pause(); } catch (e) {}
+        radioWant = true; stIndex = -1; phoneStart(); renderStations();
+        $('#radioText').textContent = '♪ ' + sharedRadio.title + ' · ORTAK';
+        setNow(sharedRadio.title, 'ODAYLA ORTAK', sharedRadio.by ? sharedRadio.by + ' telefonundan paylaştı' : 'Telefondan müzik', true);
+        toast('♪ ' + (sharedRadio.by || 'Biri') + ' telefonundan müzik paylaştı.'); return;
+      }
+      phoneStop();
       stIndex = stations.findIndex((x) => x.u === j.url); playUrl(j.url, null); renderStations();
       $('#radioText').textContent = '♪ ' + sharedRadio.title + ' · ORTAK';
       $('#radioBar').classList.remove('hidden');
@@ -2501,7 +2642,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.17'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.18'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
