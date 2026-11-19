@@ -324,6 +324,7 @@
     try { $('#cRoutesN').innerHTML = seg7(String(Math.min(99, ((store.get('routes', []) || []).length + plans().length))).padStart(2, '0')); } catch (e) {}
     $('#cRoomsSub').textContent = S.room ? 'İÇERİDESİN' : 'KAYITLI';
   }
+  $('#lcdToggle2').onclick = (e) => { e.stopPropagation(); store.set('lcd', ((+store.get('lcd', 0) || 0) + 1) % 3); applyLcd(); };
   $('#lcdToggle').onclick = (e) => { e.stopPropagation(); store.set('lcd', ((+store.get('lcd', 0) || 0) + 1) % 3); applyLcd(); };
   $('#cRooms').onclick = () => go('rooms');
   $('#cRoutes').onclick = () => go('routes');
@@ -524,7 +525,7 @@
     S.room = room; S.code = code; S.server = acc.server || '';
     const info = acc.room || {};
     S.cap = (info.cap !== undefined) ? (info.cap | 0) : CFG.MAX_RIDERS;
-    S.title = info.name || code; S.locked = !!info.locked; S.permanent = !!info.permanent;
+    S.title = info.name || code; S.locked = !!info.locked; S.permanent = !!info.permanent; S.logo = String(info.logo || '');
     S.owner = acc.owner || ''; S.admins = new Set(acc.admins || []);
     S.nicks = acc.nicks || {}; S.approval = !!(info.approval);
     S.lockedIds = new Set(); S.silenced = new Set(); S.roomLock = false;
@@ -725,7 +726,7 @@
           S.onCall.add(id); S.callInfo[id] = { media: j.k === 'media', at: Date.now() };
         } else { delete S.callInfo[id]; if (S.onCall.delete(id)) toast(name + ' telefon görüşmesini bitirdi.'); }
         renderRoom(); break;
-      case 'roominfo': if (j.name) { S.title = j.name; rememberRoom(S.code, j.name, S.locked, S.wantRoom && S.wantRoom.pw); renderRoom(); toast('Oda adı güncellendi: ' + j.name); } break;
+      case 'roominfo': if (j.name) { S.title = j.name; if (j.logo !== undefined) S.logo = String(j.logo || ''); rememberRoom(S.code, j.name, S.locked, S.wantRoom && S.wantRoom.pw); renderRoom(); toast('Oda adı güncellendi: ' + j.name); } break;
       case 'ping': onPing(j, id, name); break;
       case 'img': if (id) onPhotoChunk(j, id, name); break;
       case 'sos': onSos(j, id, name); break;
@@ -1168,6 +1169,13 @@
     setTimeout(() => { rrPending = false; try { renderRoomNow(); } catch (e) {} }, 160);
   }
   function setHtml(sel, html) { const el = $(sel); if (el && el.__h !== html) { el.__h = html; el.innerHTML = html; return true; } return false; }
+  // 1.4.19: oda logosu (sunucudaki base64 resim; Android ile aynı)
+  function logoSrc(b) {
+    b = String(b || ''); if (!b || /^https?:/i.test(b) && b.length > 400) return '';
+    if (/^https:\/\//i.test(b)) return b;
+    if (!/^[A-Za-z0-9+\/=]+$/.test(b)) return '';
+    return 'data:image/' + (b.startsWith('iVBOR') ? 'png' : b.startsWith('UklG') ? 'webp' : 'jpeg') + ';base64,' + b;
+  }
   function renderRoomNow() {
     try { renderMShare(); } catch (e) {}
     // ekrana sığdırma sadece ekran/oda durumu değişince (her çizimde değil: sürekli ölçmek telefonu kasıyordu)
@@ -1189,7 +1197,9 @@
     $('#rTitle').textContent = S.title;
     try {
       const cap = (S.cap === undefined ? CFG.MAX_RIDERS : S.cap);
-      $('#rLogo2').textContent = initial(S.title);
+      { const lg = $('#rLogo2'), u = logoSrc(S.logo);
+        if (u) { if (lg.__u !== u) { lg.__u = u; lg.innerHTML = '<img alt="" src="' + u + '">'; } lg.classList.add('has'); }
+        else { lg.__u = ''; lg.textContent = initial(S.title); lg.classList.remove('has'); } }
       $('#rlName').textContent = String(S.title || S.code || '').toLocaleUpperCase('tr-TR') + (S.locked ? ' 🔒' : '');
       $('#rlCount').textContent = list.length + '/' + (cap > 0 ? cap : '∞') + ' SÜRÜCÜ' + (S.permanent ? ' · KALICI' : '');
       $('#rlMode').textContent = { ptt: 'BAS-KONUŞ', open: 'ELLER SERBEST', live: 'SÜREKLİ AÇIK' }[currentMode()];
@@ -2642,7 +2652,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.18'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.19'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
