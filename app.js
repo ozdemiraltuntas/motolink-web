@@ -2356,6 +2356,26 @@
     }
   }
 
+  // 1.4.21: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
+  setInterval(() => {
+    const r = S.room; if (!r || r.state !== 'connected') return;
+    try {
+      if (!r.canPlaybackAudio) r.startAudio().catch(() => {});
+      $$('audio.lk').forEach((a) => { if (a.paused) a.play().catch(() => {}); });
+      r.remoteParticipants.forEach((p) => {
+        const pubs = p.audioTrackPublications || p.audioTracks; if (!pubs) return;
+        pubs.forEach((pub) => {
+          if (!pub.isSubscribed) { if (pub.setSubscribed) pub.setSubscribed(true); return; }
+          const t = pub.track; if (!t || pub.isMuted) return;
+          if (!t.attachedElements || !t.attachedElements.length) {
+            const el = t.attach(); el.classList.add('lk'); el.setAttribute('playsinline', ''); el.style.display = 'none';
+            document.body.appendChild(el); try { applyVoiceVol(); } catch (e) {}
+          }
+        });
+      });
+    } catch (e) {}
+  }, 3000);
+
   // ------------------------------------------------------------ radyo
   const player = new Audio();
   player.setAttribute('playsinline', '');
@@ -2652,7 +2672,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.20'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.21'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
