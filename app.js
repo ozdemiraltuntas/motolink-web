@@ -1345,6 +1345,21 @@
       'Kalıcı uygulama gibi kullanmak için Safari\'de alttaki Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n\n' +
       '🔑 Oda kodu: ' + code + (locked ? '\nBu oda şifreli, şifreyi oda sahibinden iste.' : '');
   }
+  // 1.4.22: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
+  function appInviteText() {
+    const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
+    return '🏍 Seni MotoLink\'e davet ediyorum! Motosiklet grubu için interkom, harita ve S.O.S.\n\n' +
+      '📱 Android: ' + base + 'katil.html\n' +
+      '⬇ Uygulamayı indir: https://github.com/ozdemiraltuntas/motolink-web/releases/latest\n\n' +
+      '🍏 iPhone (Safari\'de aç): ' + base + '\n' +
+      'Kalıcı uygulama gibi kullanmak için Safari\'de Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n\n' +
+      'Kurunca Arkadaşlarım > Ekle ile beni ekle. Arkadaş kodum: ' + prettyCode(MY_CODE);
+  }
+  async function shareAppInvite() {
+    const text = appInviteText();
+    try { if (navigator.share) { await navigator.share({ title: 'MotoLink', text }); return; } } catch (e) { return; }
+    try { await navigator.clipboard.writeText(text); toast('Davet yazısı kopyalandı.'); } catch (e) { toast(text, 8000); }
+  }
   async function shareInvite() {
     if (!S.room) return;
     const text = inviteText(S.code, S.title, S.locked);
@@ -1411,6 +1426,7 @@
       '<button class="mbtn danger" data-a="silall">🔇 Herkesi sustur (sadece yöneticiler konuşsun)</button>' +
       ((S.silenced.size || S.lockedIds.size || S.roomLock) ? '<button class="mbtn raised" data-a="free">🔊 Herkesi serbest bırak</button>' : '') +
       (amAdmin() && (S.locked || S.permanent) ? '<button class="mbtn raised" data-a="apr">' + (S.approval ? '🛡 Girişte onay: AÇIK (kapatmak için dokun)' : '🛡 Girişte yönetici onayı iste') + '</button>' : '') +
+      (S.id === S.owner && S.permanent ? '<button class="mbtn raised" data-a="ren">✏️ Oda adını düzenle</button>' : '') +
       '<p>Tek bir kişi için listede ismine dokun. Gizlilik gereği kimsenin mikrofonu uzaktan açılamaz.</p>' +
       '<button class="mbtn raised" data-a="x">Kapat</button>', (b) => {
       b.querySelectorAll('[data-a]').forEach((btn) => btn.onclick = () => {
@@ -1420,10 +1436,33 @@
         if (a === 'silall') modSilenceAll();
         if (a === 'free') modReleaseAll();
         if (a === 'apr') setApproval(!S.approval);
+        if (a === 'ren') setTimeout(askRenameRoom, 80);
         if (a === 'rec') setTimeout(() => $('#roomRecBtn').onclick(), 80);   // 1.4.4: kayıt YÖNET menüsünde
       });
     });
   };
+  // 1.4.22: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
+  function askRenameRoom() {
+    sheet('<h3>✏️ Oda adını düzenle</h3><p>Yeni adı yaz. Odanın giriş kodu ve davet bağlantıları aynı kalır.</p>' +
+      '<input id="rnIn" class="input inset" maxlength="32" value="' + esc(S.title || '') + '">' +
+      '<button class="mbtn amber" id="rnOk">Kaydet</button><button class="mbtn raised" id="rnNo">Vazgeç</button>', (b) => {
+      const inp = b.querySelector('#rnIn'); setTimeout(() => inp.focus(), 50);
+      b.querySelector('#rnNo').onclick = closeSheet;
+      b.querySelector('#rnOk').onclick = async () => {
+        const v = inp.value.replace(/\s+/g, ' ').trim();
+        if (v.length < 2) { toast('Oda adı en az 2 harf olmalı.'); return; }
+        closeSheet();
+        try {
+          const j = await api({ action: 'create', room: S.code, identity: S.id, displayName: v, permanent: S.permanent, password: 'keep', approval: S.approval });
+          const nm = (j.room && j.room.name) || v;
+          S.title = nm;
+          rememberRoom(S.code, nm, S.locked, S.wantRoom && S.wantRoom.pw);
+          publish({ t: 'roominfo', name: nm, logo: S.logo || '' });
+          renderRoom(); toast('Oda adı güncellendi: ' + nm);
+        } catch (e) { toast((e.message || 'Oda adı değiştirilemedi.').indexOf('başka biri') >= 0 ? 'Bu odayı sen açmamışsın; sadece açan kişi düzenleyebilir.' : (e.message || 'Oda adı değiştirilemedi.'), 6000); }
+      };
+    });
+  }
   function askNick(id, name) {
     sheet('<h3>' + esc(name) + ' bu odada hangi adla görünsün?</h3><p>Sadece bu odada görünür; diğer odalarda kendi adıyla görünmeye devam eder.</p>' +
       '<input id="nkIn" class="input inset" maxlength="24" placeholder="ör. Dalgıç, Muhabere, Öncü">' +
@@ -2356,7 +2395,7 @@
     }
   }
 
-  // 1.4.21: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
+  // 1.4.22: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
   setInterval(() => {
     const r = S.room; if (!r || r.state !== 'connected') return;
     try {
@@ -2672,7 +2711,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.21'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.22'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
@@ -2750,8 +2789,9 @@
   $('#addFriendBtn').onclick = () => {
     sheet('<h3>＋ Arkadaş ekle</h3><p>Arkadaşının uygulamada "Arkadaş kodum" yazan kodunu gir. Odadaysanız adına dokunup "Arkadaş olarak ekle" de diyebilirsin.</p>' +
       '<input id="afName" class="input inset" maxlength="24" placeholder="Adı"><input id="afCode" class="input inset" maxlength="30" placeholder="Kodu (U…)" autocapitalize="characters" autocomplete="off">' +
-      '<div class="small" id="afErr" style="color:#ff6b6b"></div><button class="mbtn amber" id="afOk">Ekle</button><button class="mbtn raised" id="afNo">Vazgeç</button>', (b) => {
+      '<div class="small" id="afErr" style="color:#ff6b6b"></div><button class="mbtn amber" id="afOk">Ekle</button><button class="mbtn raised" id="afInv">✉️ MotoLink\'e davet et (SMS / WhatsApp)</button><button class="mbtn raised" id="afNo">Vazgeç</button>', (b) => {
       b.querySelector('#afNo').onclick = closeSheet;
+      b.querySelector('#afInv').onclick = () => shareAppInvite();
       b.querySelector('#afOk').onclick = () => {
         const er = addFriend(b.querySelector('#afName').value, b.querySelector('#afCode').value);
         if (er) b.querySelector('#afErr').textContent = er; else { closeSheet(); toast('Arkadaş eklendi.'); }
@@ -2766,7 +2806,7 @@
       '<button class="mbtn amber" id="mcShare">Paylaş</button><button class="mbtn raised" id="mcNo">Kapat</button>', (b) => {
       b.querySelector('#mcNo').onclick = closeSheet;
       b.querySelector('#mcShare').onclick = async () => {
-        const text = 'MotoLink arkadaş kodum: ' + prettyCode(MY_CODE) + '\nUygulamada Arkadaşlarım > Ekle ile beni ekle.';
+        const text = appInviteText();
         try { if (navigator.share) { await navigator.share({ title: 'MotoLink', text }); return; } } catch (e) { return; }
         try { await navigator.clipboard.writeText(text); toast('Kod kopyalandı.'); } catch (e) { toast(text, 8000); }
       };
@@ -2974,7 +3014,58 @@
     sheet('<h3>✅ Kimliğin geri geldi</h3><p>' + esc(msg) + '</p><button class="mbtn amber" id="swOk">Tamam</button>', (b) => { b.querySelector('#swOk').onclick = () => location.reload(); });
   }
   // 1.1.7: "Google ile bağlan" kaldırıldı; kimlik kodu ile yedek / geri yükleme kalır
-  function renderAccount() { const box = $('#accBox'); if (box) box.innerHTML = ''; }
+  // 1.4.22: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
+  function renderAccount() {
+    const box = $('#accBox'); if (!box) return;
+    const gm = store.get('gmail', '');
+    box.innerHTML = (gm ? '<div class="small" style="color:var(--green);margin:0 2px 6px">✓ Google hesabı bağlı: ' + esc(gm) + '</div>' : '') +
+      '<button class="mbtn amber" id="accGoogle">G&nbsp; ' + (gm ? 'Google hesabını yenile' : 'Google ile bağlan / geri getir') + '</button>';
+    $('#accGoogle').onclick = googleSignIn;
+  }
+  function loadGsi() {
+    return new Promise((res, rej) => {
+      if (window.google && google.accounts && google.accounts.id) return res();
+      const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.async = true;
+      sc.onload = () => res(); sc.onerror = () => rej(new Error('Google yüklenemedi (internet?)'));
+      document.head.appendChild(sc);
+    });
+  }
+  async function googleSignIn() {
+    let cid = '';
+    try {
+      busy(true, 'Google hazırlanıyor…');
+      const cfg = await api({ action: 'config', room: 'PUSH', identity: S.id });
+      cid = String(cfg.googleClientId || '');
+      await loadGsi();
+    } catch (e) { busy(false); toast(e.message || 'Google girişi hazırlanamadı.', 6000); return; }
+    busy(false);
+    if (!cid) { toast('Sunucuda Google girişi ayarlı değil.', 6000); return; }
+    sheet('<h3>G Google ile bağlan</h3><p>Aynı Gmail ile bağlanınca, tarayıcıyı ya da telefonu değiştirsen bile odaların ve kimliğin geri gelir.</p>' +
+      '<div id="gBtn" style="display:flex;justify-content:center;margin:10px 0;min-height:44px"></div><div class="small" id="gErr" style="color:#ff6b6b"></div>' +
+      '<button class="mbtn raised" id="gNo">Vazgeç</button>', (b) => {
+      b.querySelector('#gNo').onclick = closeSheet;
+      try {
+        google.accounts.id.initialize({
+          client_id: cid,
+          callback: async (resp) => {
+            if (!resp || !resp.credential) return;
+            closeSheet(); busy(true, 'Google doğrulanıyor…');
+            try {
+              const j = await api({ action: 'gauth', room: 'PUSH', identity: S.id, idToken: resp.credential, rooms: roomsForBackup() });
+              busy(false);
+              if (j.restored) {
+                switchIdentity(j.identity, j.rooms || [], j.email);
+                afterSwitch('Google hesabın bağlandı (' + (j.email || '') + '). ' + ((j.rooms || []).length ? (j.rooms.length + ' oda geri yüklendi.') : ''));
+              } else {
+                store.set('gmail', j.email || ''); renderAccount(); toast('Google hesabın bağlandı: ' + (j.email || ''), 5000);
+              }
+            } catch (e) { busy(false); toast(e.message || 'Google girişi yapılamadı.', 6000); }
+          }
+        });
+        google.accounts.id.renderButton(b.querySelector('#gBtn'), { theme: 'filled_blue', size: 'large', text: 'continue_with', shape: 'pill', locale: 'tr' });
+      } catch (e) { b.querySelector('#gErr').textContent = 'Google düğmesi açılamadı.'; }
+    });
+  }
   $('#accCode').onclick = () => {
     const code = 'ML-' + S.id;
     let img = '';
