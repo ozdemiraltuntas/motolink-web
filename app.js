@@ -1008,7 +1008,7 @@
       renderRoom(); return;
     }
     if (j.t === 'ann') {
-      // 1.4.24: yöneticiden odaya duyuru
+      // 1.4.25: yöneticiden odaya duyuru
       if (!isAdmin(id)) return;
       const tx = String(j.text || '').trim().slice(0, 140);
       if (tx) { toast('📢 ' + fromName + ': ' + tx, 9000); speak('Yönetici duyurusu. ' + tx); }
@@ -1332,27 +1332,34 @@
   $('#chatBtn2').onclick = () => chOpen(null);
   $('#shareBtn').onclick = () => {
     if (!S.room) return;
-    sheet('<h3>Paylaş</h3><button class="mbtn raised" id="shInv">👥 Arkadaşını davet et</button>' +
+    sheet('<h3>Paylaş</h3><button class="mbtn raised" id="shInvA">🤖 Android için davet</button><button class="mbtn raised" id="shInv">🍏 iPhone için davet</button>' +
       '<p>📷 Fotoğraf göndermek için 💬 Mesajlar ekranındaki kamera tuşunu kullan.</p>' +
       '<button class="mbtn raised" id="shQr">▦ QR kodu göster</button><button class="mbtn raised" id="shNo">Kapat</button>', (b) => {
       b.querySelector('#shNo').onclick = closeSheet;
       b.querySelector('#shQr').onclick = () => { closeSheet(); setTimeout(() => $('#qrBtn').click(), 60); };
-      b.querySelector('#shInv').onclick = () => { closeSheet(); shareInvite(); };
+      b.querySelector('#shInv').onclick = () => { closeSheet(); shareInvite('ios'); };
+      b.querySelector('#shInvA').onclick = () => { closeSheet(); shareInvite('android'); };
     });
   };
   // 1.4.7: açıklamalı davet mesajı (Android ve iPhone için ayrı bağlantılar; hepsi https:// ile tıklanabilir)
-  function inviteText(code, title, locked) {
+  // 1.4.25: platform: 'android' = sadece Android bağlantısı, 'ios' = sadece iPhone bağlantısı, boş = ikisi
+  function inviteText(code, title, locked, platform) {
     const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
     const c = encodeURIComponent(code);
-    return '🏍 MotoLink: "' + (title || code) + '" odasına davetlisin!\n\n' +
-      '📱 Android:\n👉 Katılmak için dokun: ' + base + 'katil.html?c=' + c + '\n' +
-      'Uygulama yüklüyse açılır ve odaya girer. Yüklü değilse indirme sayfası açılır: oradaki MotoLink …apk dosyasını indirip kur, sonra bu bağlantıya tekrar dokun.\n' +
-      '⬇ Uygulamayı indir: https://github.com/ozdemiraltuntas/motolink-web/releases/latest\n\n' +
-      '🍏 iPhone:\n👉 Katılmak için dokun (Safari\'de açılır): ' + base + '?c=' + c + '\n' +
-      'Kalıcı uygulama gibi kullanmak için Safari\'de alttaki Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n\n' +
-      '🔑 Oda kodu: ' + code + (locked ? '\nBu oda şifreli, şifreyi oda sahibinden iste.' : '');
+    const both = !platform;
+    let t = '🏍 MotoLink: "' + (title || code) + '" odasına davetlisin!\n\n';
+    if (platform !== 'ios') {
+      t += (both ? '📱 Android:\n' : '📱 Android için:\n') + '👉 Katılmak için dokun: ' + base + 'katil.html?c=' + c + '\n' +
+        'Uygulama yüklüyse açılır ve odaya girer. Yüklü değilse indirme sayfası açılır: oradaki MotoLink …apk dosyasını indirip kur, sonra bu bağlantıya tekrar dokun.\n' +
+        '⬇ Uygulamayı indir: https://github.com/ozdemiraltuntas/motolink-web/releases/latest\n\n';
+    }
+    if (platform !== 'android') {
+      t += (both ? '🍏 iPhone:\n' : '🍏 iPhone için:\n') + '👉 Katılmak için dokun (Safari\'de açılır): ' + base + '?c=' + c + '\n' +
+        'Kalıcı uygulama gibi kullanmak için Safari\'de alttaki Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n\n';
+    }
+    return t + '🔑 Oda kodu: ' + code + (locked ? '\nBu oda şifreli, şifreyi oda sahibinden iste.' : '');
   }
-  // 1.4.24: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
+  // 1.4.25: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
   function appInviteText() {
     const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
     return '🏍 Seni MotoLink\'e davet ediyorum! Motosiklet grubu için interkom, harita ve S.O.S.\n\n' +
@@ -1367,9 +1374,9 @@
     try { if (navigator.share) { await navigator.share({ title: 'MotoLink', text }); return; } } catch (e) { return; }
     try { await navigator.clipboard.writeText(text); toast('Davet yazısı kopyalandı.'); } catch (e) { toast(text, 8000); }
   }
-  async function shareInvite() {
+  async function shareInvite(platform) {
     if (!S.room) return;
-    const text = inviteText(S.code, S.title, S.locked);
+    const text = inviteText(S.code, S.title, S.locked, platform);
     try { if (navigator.share) { await navigator.share({ title: 'MotoLink', text }); return; } } catch (e) { return; }
     try { await navigator.clipboard.writeText(text); toast('Davet yazısı kopyalandı.'); } catch (e) { toast(text, 8000); }
   };
@@ -1450,7 +1457,7 @@
       });
     });
   };
-  // 1.4.24: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
+  // 1.4.25: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
   function askAnnounce() {
     sheet('<h3>📢 Odaya duyuru</h3><p>Odadakilerin ekranında yazı çıkar ve sesli okunur.</p>' +
       '<input id="anIn" class="input inset" maxlength="140" placeholder="ör. 5 dakika sonra yola çıkıyoruz">' +
@@ -2416,7 +2423,7 @@
     }
   }
 
-  // 1.4.24: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
+  // 1.4.25: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
   setInterval(() => {
     const r = S.room; if (!r || r.state !== 'connected') return;
     try {
@@ -2732,7 +2739,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.24'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.25'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
@@ -3035,7 +3042,7 @@
     sheet('<h3>✅ Kimliğin geri geldi</h3><p>' + esc(msg) + '</p><button class="mbtn amber" id="swOk">Tamam</button>', (b) => { b.querySelector('#swOk').onclick = () => location.reload(); });
   }
   // 1.1.7: "Google ile bağlan" kaldırıldı; kimlik kodu ile yedek / geri yükleme kalır
-  // 1.4.24: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
+  // 1.4.25: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
   function renderAccount() {
     const box = $('#accBox'); if (!box) return;
     const gm = store.get('gmail', '');
