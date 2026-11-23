@@ -733,7 +733,7 @@
       case 'chat': if (id) onChat(j, id, name); break;
       case 'rec': if (id) onRec(j, id, name); break;
       case 'music': onMusic(j); break;
-      case 'adm': case 'locks': case 'mod': case 'nick': case 'apr': onAdminMsg(j, id, name); break;
+      case 'adm': case 'locks': case 'mod': case 'nick': case 'apr': case 'ann': onAdminMsg(j, id, name); break;
       default: break;
     }
   }
@@ -1008,7 +1008,7 @@
       renderRoom(); return;
     }
     if (j.t === 'ann') {
-      // 1.4.23: yöneticiden odaya duyuru
+      // 1.4.24: yöneticiden odaya duyuru
       if (!isAdmin(id)) return;
       const tx = String(j.text || '').trim().slice(0, 140);
       if (tx) { toast('📢 ' + fromName + ': ' + tx, 9000); speak('Yönetici duyurusu. ' + tx); }
@@ -1352,7 +1352,7 @@
       'Kalıcı uygulama gibi kullanmak için Safari\'de alttaki Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n\n' +
       '🔑 Oda kodu: ' + code + (locked ? '\nBu oda şifreli, şifreyi oda sahibinden iste.' : '');
   }
-  // 1.4.23: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
+  // 1.4.24: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
   function appInviteText() {
     const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
     return '🏍 Seni MotoLink\'e davet ediyorum! Motosiklet grubu için interkom, harita ve S.O.S.\n\n' +
@@ -1450,7 +1450,7 @@
       });
     });
   };
-  // 1.4.23: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
+  // 1.4.24: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
   function askAnnounce() {
     sheet('<h3>📢 Odaya duyuru</h3><p>Odadakilerin ekranında yazı çıkar ve sesli okunur.</p>' +
       '<input id="anIn" class="input inset" maxlength="140" placeholder="ör. 5 dakika sonra yola çıkıyoruz">' +
@@ -2416,7 +2416,7 @@
     }
   }
 
-  // 1.4.23: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
+  // 1.4.24: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
   setInterval(() => {
     const r = S.room; if (!r || r.state !== 'connected') return;
     try {
@@ -2732,7 +2732,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.23'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.24'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
@@ -3035,7 +3035,7 @@
     sheet('<h3>✅ Kimliğin geri geldi</h3><p>' + esc(msg) + '</p><button class="mbtn amber" id="swOk">Tamam</button>', (b) => { b.querySelector('#swOk').onclick = () => location.reload(); });
   }
   // 1.1.7: "Google ile bağlan" kaldırıldı; kimlik kodu ile yedek / geri yükleme kalır
-  // 1.4.23: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
+  // 1.4.24: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
   function renderAccount() {
     const box = $('#accBox'); if (!box) return;
     const gm = store.get('gmail', '');
