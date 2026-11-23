@@ -1008,7 +1008,7 @@
       renderRoom(); return;
     }
     if (j.t === 'ann') {
-      // 1.4.25: yöneticiden odaya duyuru
+      // 1.4.27: yöneticiden odaya duyuru
       if (!isAdmin(id)) return;
       const tx = String(j.text || '').trim().slice(0, 140);
       if (tx) { toast('📢 ' + fromName + ': ' + tx, 9000); speak('Yönetici duyurusu. ' + tx); }
@@ -1342,7 +1342,7 @@
     });
   };
   // 1.4.7: açıklamalı davet mesajı (Android ve iPhone için ayrı bağlantılar; hepsi https:// ile tıklanabilir)
-  // 1.4.25: platform: 'android' = sadece Android bağlantısı, 'ios' = sadece iPhone bağlantısı, boş = ikisi
+  // 1.4.27: platform: 'android' = sadece Android bağlantısı, 'ios' = sadece iPhone bağlantısı, boş = ikisi
   function inviteText(code, title, locked, platform) {
     const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
     const c = encodeURIComponent(code);
@@ -1359,21 +1359,30 @@
     }
     return t + '🔑 Oda kodu: ' + code + (locked ? '\nBu oda şifreli, şifreyi oda sahibinden iste.' : '');
   }
-  // 1.4.25: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
-  function appInviteText() {
+  // 1.4.27: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
+  function appInviteText(platform) {
     const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
-    return '🏍 Seni MotoLink\'e davet ediyorum! Motosiklet grubu için interkom, harita ve S.O.S.\n\n' +
-      '📱 Android: ' + base + 'katil.html\n' +
-      '⬇ Uygulamayı indir: https://github.com/ozdemiraltuntas/motolink-web/releases/latest\n\n' +
-      '🍏 iPhone (Safari\'de aç): ' + base + '\n' +
-      'Kalıcı uygulama gibi kullanmak için Safari\'de Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n\n' +
-      'Kurunca Arkadaşlarım > Ekle ile beni ekle. Arkadaş kodum: ' + prettyCode(MY_CODE);
+    const both = !platform;
+    let t = '🏍 Seni MotoLink\'e davet ediyorum! Motosiklet grubu için interkom, harita ve S.O.S.\n\n';
+    if (platform !== 'ios') {
+      t += (both ? '📱 Android: ' : '📱 Android için kurulum:\n') + (both ? '' : '1. Bağlantıyı aç: ') + base + 'katil.html\n' +
+        (both ? '' : '2. Yüklü değilse indirme sayfası açılır: oradaki MotoLink …apk dosyasını indirip kur.\n3. Açılışta mikrofon ve konum iznine "İzin Ver" de.\n') +
+        '⬇ Uygulamayı indir: https://github.com/ozdemiraltuntas/motolink-web/releases/latest\n\n';
+    }
+    if (platform !== 'android') {
+      t += (both ? '🍏 iPhone (Safari\'de aç): ' : '🍏 iPhone için kurulum:\n1. Safari\'yi aç (Chrome değil).\n2. Adresi aç: ') + base + '\n' +
+        'Kalıcı uygulama gibi kullanmak için Safari\'de Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n' +
+        (both ? '' : 'Sürüşte MotoLink ekranı açık kalsın: iPhone arka plandaki web uygulamasının mikrofonunu kapatır (Apple kuralı).\n') + '\n';
+    }
+    return t + 'Kurunca Arkadaşlarım > Ekle ile beni ekle. Arkadaş kodum: ' + prettyCode(MY_CODE);
   }
-  async function shareAppInvite() {
-    const text = appInviteText();
+  async function shareAppInvite(platform) {
+    const text = appInviteText(platform);
     try { if (navigator.share) { await navigator.share({ title: 'MotoLink', text }); return; } } catch (e) { return; }
     try { await navigator.clipboard.writeText(text); toast('Davet yazısı kopyalandı.'); } catch (e) { toast(text, 8000); }
   }
+  renderGuide();
+  { const ia = $('#invAndroid'), ii = $('#invIos'), il = $('#invAll'); if (ia) ia.onclick = () => shareAppInvite('android'); if (ii) ii.onclick = () => shareAppInvite('ios'); if (il) il.onclick = () => shareAppInvite(); }
   async function shareInvite(platform) {
     if (!S.room) return;
     const text = inviteText(S.code, S.title, S.locked, platform);
@@ -1457,7 +1466,7 @@
       });
     });
   };
-  // 1.4.25: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
+  // 1.4.27: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
   function askAnnounce() {
     sheet('<h3>📢 Odaya duyuru</h3><p>Odadakilerin ekranında yazı çıkar ve sesli okunur.</p>' +
       '<input id="anIn" class="input inset" maxlength="140" placeholder="ör. 5 dakika sonra yola çıkıyoruz">' +
@@ -2423,7 +2432,7 @@
     }
   }
 
-  // 1.4.25: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
+  // 1.4.27: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
   setInterval(() => {
     const r = S.room; if (!r || r.state !== 'connected') return;
     try {
@@ -2739,7 +2748,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.25'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.28'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
@@ -3042,7 +3051,7 @@
     sheet('<h3>✅ Kimliğin geri geldi</h3><p>' + esc(msg) + '</p><button class="mbtn amber" id="swOk">Tamam</button>', (b) => { b.querySelector('#swOk').onclick = () => location.reload(); });
   }
   // 1.1.7: "Google ile bağlan" kaldırıldı; kimlik kodu ile yedek / geri yükleme kalır
-  // 1.4.25: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
+  // 1.4.27: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
   function renderAccount() {
     const box = $('#accBox'); if (!box) return;
     const gm = store.get('gmail', '');
@@ -3221,3 +3230,11 @@
   if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {})); }
   if (!LK) toast('Ses bileşeni yüklenemedi. Sayfayı yenile.', 8000);
 })();
+
+// 1.4.28: Ayarlar > Kullanım kılavuzu (iPhone / web'e göre)
+const GUIDE = [["1. Başlarken (iPhone / web)", "MotoLink'in iPhone'da App Store uygulaması yoktur; web sürümü kullanılır ve Android'dekilerle aynı odalarda konuşursun.\nKurulum: Safari'de adresi aç, alttaki Paylaş (□↑) düğmesine dokun, \"Ana Ekrana Ekle\"yi seç. Artık uygulama gibi ana ekrandan açılır.\nİlk açılışta adını yaz. Mikrofon ve konum iznine \"İzin ver\" de."], ["2. iPhone'un sınırları (önemli)", "• Ekran açık kalmalı: iPhone, arka plandaki web uygulamasının mikrofonunu kapatır. Sürüşte MotoLink ekranı açık dursun (Ayarlar'daki \"Ekran açık kalsın\" seçeneğini aç).\n• Ekran kilitlenirse tekrar açınca \"Odana geri dön\" ile tek dokunuşla dönersin.\n• Yakın mod (internetsiz Bluetooth / Wi-Fi) yoktur; iPhone yakın moda katılamaz.\n• Kaza algılama yoktur.\n• Bildirimler için Safari'de uygulamayı ana ekrana ekleyip bildirim iznini vermen gerekir."], ["3. Oda açma ve odaya girme", "Oda oluştur: Tek seferlik oda hemen açılır. Kalıcı oda için ad yaz, istersen şifre koy; \"Girişte yönetici onayı\" da seçebilirsin.\nOdaya gir: Kod yaz, QR okut ya da gelen bağlantıya dokun. Girdiğin odalar listede durur, kaç kişi olduğu da yazar.\nOdadan ayrılmak için oda sayfasındaki \"Odadan ayrıl\"a dokun."], ["4. Konuşma modları", "• Bas-konuş: Büyük düğmeye basılı tut, konuş, bırak.\n• Eller serbest: Konuşunca mikrofon kendiliğinden açılır.\n• Sürekli açık: Mikrofon hep açıktır.\nYönetici herkesi bas-konuşa alıp kilitleyebilir. Biri konuşurken oda müziği kısılır.\nBüyük düğmenin etrafındaki halkayı sürükleyerek odanın ses seviyesini ayarlarsın."], ["5. Kulaklık ve hoparlör", "Bas-konuş düğmesinin altındaki Kulaklık ve Hoparlör düğmeleriyle çıkışı seçersin. iPhone'da çıkış cihazını seçme sınırlıdır; Bluetooth kulaklık bağlıysa ses oradan gelir. Ses gelmiyorsa iPhone'un ses düğmesine ve sessiz modu anahtarına bak."], ["6. Harita ve navigasyon", "Harita sayfasında odadakilerin yerini ve hızını görürsün. Birine dokununca takip edersin.\nHedef seçip rota çizebilir, uygulama içi navigasyonu başlatabilirsin: dönüş oku, kalan mesafe, varış saati ve hız ekranda görünür.\nSürüşünü kaydedip rotalarına ekleyebilirsin.\nNot: Rotayı videoya çevirme (Sürüş filmi) sadece Android uygulamasındadır; iPhone / web'de yoktur.\nKonum paylaşımı Ayarlar'dan açılıp kapatılır. Kapalıysa kimse seni haritada göremez.\nNot: Hızın görünmesi için konum canlı paylaşılmalı ve ekran açık olmalıdır."], ["7. S.O.S", "S.O.S düğmesine basınca nedeni seç. Çağrın odalardaki ve arkadaşlarındaki herkese gider. İptal edebilirsin.\nBunu internet olan yerde kullanabilirsin. Acil durumda 112'yi ara."], ["8. Mesajlar ve fotoğraf", "💬 Mesajlar'dan odaya ya da tek kişiye yazarsın. Sürüşte yazı kapalıdır, hazır mesajlar kalır.\nKamera düğmesiyle fotoğraf gönderirsin; fotoğraf sunucuda saklanmaz.\nUygunsuz mesaj ya da fotoğrafa dokunup \"Bildir\" ya da \"Engelle\" seçebilirsin."], ["9. Müzik ve radyo", "Müzik sayfasında internet radyosu çalarsın. Odada paylaşırsan herkes birlikte dinler. Android'li arkadaşın telefon müziğini paylaşırsa onu da duyarsın.\nRadyo satırında önceki / oynat / sonraki düğmeleri vardır."], ["10. Arkadaşlar", "Arkadaş kodun: Ayarlar ya da Ana sayfadaki \"Arkadaş kodum\"dan görürsün.\nArkadaş ekle: Kodu yaz ya da odada birinin adına dokunup \"Arkadaş olarak ekle\" de. Arkadaşını ararsan ona özel oda açılır.\nUygulaması olmayan birini davet etmek için \"Arkadaş ekle\" ekranındaki \"MotoLink'e davet et\" düğmesini kullan."], ["11. Oda yönetimi (YÖNET)", "Odayı açan ve yönetici yapılanlar YÖNET menüsünü görür:\n• Konuşmaları kaydet / durdur.\n• Herkesi bas-konuşa al, odayı kilitle, herkesi sustur ya da serbest bırak.\n• Girişte yönetici onayı iste.\n• Odaya duyuru gönder: herkesin ekranında çıkar ve sesli okunur.\n• Oda adını düzenle (adı yanlış yazdıysan): giriş kodu değişmez. Sadece odayı açan yapabilir.\n• Birini odadan çıkar (30 dakika geri giremez), yönetici ekle / çıkar."], ["12. Arkadaşlarını davet etme", "Odadayken Paylaş: \"Android için davet\" ya da \"iPhone için davet\" seç. QR kodu da gösterebilirsin.\nAyarlar > Arkadaşlarını davet et: hepsini birlikte, sadece Android ya da sadece iPhone bağlantısını gönderirsin."], ["13. Hesap, yedek ve telefon değiştirme", "Safari verisi silinse ya da yeni telefona geçsen odaların şunlarla geri gelir:\n• Kimlik kodu: Ayarlar > Hesap ve yedek > \"Kimlik kodum\". \"ML-\" ile başlayan kodu sakla; \"Kodla geri yükle\" ile gir.\n• Google ile bağlan: Aynı Gmail ile girersen hesabın geri gelir. Yanlış hesapla bağlandıysan \"Google bağlantısını kaldır\"a bas.\nKimlik kodunu kimseyle paylaşma."], ["14. Sorun giderme", "Duyamıyoruz: Oda sayfasından çıkıp tekrar girin. Ekranın açık olduğundan ve sessiz modun kapalı olduğundan emin olun.\nHız görünmüyor: Konum izni verilmiş ve konum paylaşımı açık olmalı; ekran açık kalmalı.\nEski sürüm görünüyor: Uygulamayı tamamen kapatıp yeniden aç. Olmazsa Safari'de sayfayı yenile.\nBildirim yok: Uygulamayı ana ekrana ekleyip bildirim iznini ver."]];
+function renderGuide() {
+  const b = $('#guideBox'); if (!b) return;
+  const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  b.innerHTML = GUIDE.map(g => '<details style="border-top:1px solid rgba(128,128,128,.3);padding:10px 0"><summary style="font-weight:700;cursor:pointer">' + esc(g[0]) + '</summary><div style="white-space:pre-line;line-height:1.5;font-size:14px;margin-top:8px">' + esc(g[1]) + '</div></details>').join('');
+}
