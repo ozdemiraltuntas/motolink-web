@@ -1007,6 +1007,13 @@
       else if (openMicLocked() && S.open) { forcePtt(); toast('🔒 ' + fromName + ' seni bas-konuşa aldı. Konuşmak için düğmeye basılı tut.'); }
       renderRoom(); return;
     }
+    if (j.t === 'ann') {
+      // 1.4.23: yöneticiden odaya duyuru
+      if (!isAdmin(id)) return;
+      const tx = String(j.text || '').trim().slice(0, 140);
+      if (tx) { toast('📢 ' + fromName + ': ' + tx, 9000); speak('Yönetici duyurusu. ' + tx); }
+      return;
+    }
     if (j.t === 'mod') {
       const forMe = j.to === S.id || (j.to === '*' && !amAdmin());
       if (!forMe) return;
@@ -1345,7 +1352,7 @@
       'Kalıcı uygulama gibi kullanmak için Safari\'de alttaki Paylaş ⬆ tuşuna, sonra "Ana Ekrana Ekle"ye dokun.\n\n' +
       '🔑 Oda kodu: ' + code + (locked ? '\nBu oda şifreli, şifreyi oda sahibinden iste.' : '');
   }
-  // 1.4.22: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
+  // 1.4.23: uygulamaya davet (oda olmadan): Android ve iPhone bağlantıları + arkadaş kodum
   function appInviteText() {
     const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
     return '🏍 Seni MotoLink\'e davet ediyorum! Motosiklet grubu için interkom, harita ve S.O.S.\n\n' +
@@ -1426,6 +1433,7 @@
       '<button class="mbtn danger" data-a="silall">🔇 Herkesi sustur (sadece yöneticiler konuşsun)</button>' +
       ((S.silenced.size || S.lockedIds.size || S.roomLock) ? '<button class="mbtn raised" data-a="free">🔊 Herkesi serbest bırak</button>' : '') +
       (amAdmin() && (S.locked || S.permanent) ? '<button class="mbtn raised" data-a="apr">' + (S.approval ? '🛡 Girişte onay: AÇIK (kapatmak için dokun)' : '🛡 Girişte yönetici onayı iste') + '</button>' : '') +
+      '<button class="mbtn raised" data-a="ann">📢 Odaya duyuru gönder</button>' +
       (S.id === S.owner && S.permanent ? '<button class="mbtn raised" data-a="ren">✏️ Oda adını düzenle</button>' : '') +
       '<p>Tek bir kişi için listede ismine dokun. Gizlilik gereği kimsenin mikrofonu uzaktan açılamaz.</p>' +
       '<button class="mbtn raised" data-a="x">Kapat</button>', (b) => {
@@ -1437,11 +1445,24 @@
         if (a === 'free') modReleaseAll();
         if (a === 'apr') setApproval(!S.approval);
         if (a === 'ren') setTimeout(askRenameRoom, 80);
+        if (a === 'ann') setTimeout(askAnnounce, 80);
         if (a === 'rec') setTimeout(() => $('#roomRecBtn').onclick(), 80);   // 1.4.4: kayıt YÖNET menüsünde
       });
     });
   };
-  // 1.4.22: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
+  // 1.4.23: odayı açan kişi oda adını düzeltebilir (giriş kodu aynı kalır, odadakilerde ad kendiliğinden güncellenir)
+  function askAnnounce() {
+    sheet('<h3>📢 Odaya duyuru</h3><p>Odadakilerin ekranında yazı çıkar ve sesli okunur.</p>' +
+      '<input id="anIn" class="input inset" maxlength="140" placeholder="ör. 5 dakika sonra yola çıkıyoruz">' +
+      '<button class="mbtn amber" id="anOk">Gönder</button><button class="mbtn raised" id="anNo">Vazgeç</button>', (b) => {
+      const inp = b.querySelector('#anIn'); setTimeout(() => inp.focus(), 50);
+      b.querySelector('#anNo').onclick = closeSheet;
+      b.querySelector('#anOk').onclick = () => {
+        const v = inp.value.trim().slice(0, 140); if (!v) return;
+        closeSheet(); publish({ t: 'ann', text: v }); toast('📢 Duyuru gönderildi.');
+      };
+    });
+  }
   function askRenameRoom() {
     sheet('<h3>✏️ Oda adını düzenle</h3><p>Yeni adı yaz. Odanın giriş kodu ve davet bağlantıları aynı kalır.</p>' +
       '<input id="rnIn" class="input inset" maxlength="32" value="' + esc(S.title || '') + '">' +
@@ -2395,7 +2416,7 @@
     }
   }
 
-  // 1.4.22: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
+  // 1.4.23: "birbirimizi duyamıyoruz" önlemi: her 3 sn'de ses çalma / abonelik / eksik ses elemanı kontrolü
   setInterval(() => {
     const r = S.room; if (!r || r.state !== 'connected') return;
     try {
@@ -2711,7 +2732,7 @@
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.22'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.23'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
@@ -3014,13 +3035,19 @@
     sheet('<h3>✅ Kimliğin geri geldi</h3><p>' + esc(msg) + '</p><button class="mbtn amber" id="swOk">Tamam</button>', (b) => { b.querySelector('#swOk').onclick = () => location.reload(); });
   }
   // 1.1.7: "Google ile bağlan" kaldırıldı; kimlik kodu ile yedek / geri yükleme kalır
-  // 1.4.22: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
+  // 1.4.23: "Google ile bağlan" geri geldi (Google Identity Services; sunucu Google'a sorarak doğrular, şifre tutulmaz)
   function renderAccount() {
     const box = $('#accBox'); if (!box) return;
     const gm = store.get('gmail', '');
     box.innerHTML = (gm ? '<div class="small" style="color:var(--green);margin:0 2px 6px">✓ Google hesabı bağlı: ' + esc(gm) + '</div>' : '') +
-      '<button class="mbtn amber" id="accGoogle">G&nbsp; ' + (gm ? 'Google hesabını yenile' : 'Google ile bağlan / geri getir') + '</button>';
+      '<button class="mbtn amber" id="accGoogle">G&nbsp; ' + (gm ? 'Google hesabını yenile' : 'Google ile bağlan / geri getir') + '</button>' +
+      (gm ? '<button class="mbtn raised" id="accGUnlink">Google bağlantısını kaldır</button>' : '');
     $('#accGoogle').onclick = googleSignIn;
+    const ub = $('#accGUnlink');
+    if (ub) ub.onclick = async () => {
+      try { await api({ action: 'unlink', room: 'PUSH', identity: S.id }); store.set('gmail', ''); renderAccount(); toast('Google bağlantısı kaldırıldı.'); }
+      catch (e) { toast(e.message || 'Kaldırılamadı (internet?)', 5000); }
+    };
   }
   function loadGsi() {
     return new Promise((res, rej) => {
