@@ -3,7 +3,7 @@
  * aynı oda mesajlarını konuşur: herkes aynı odada buluşur.
  */
 // 1.4.28: Ayarlar > Kullanım kılavuzu (iPhone / web'e göre)
-const GUIDE = [["1. Başlarken (iPhone / web)", "MotoLink'in iPhone'da App Store uygulaması yoktur; web sürümü kullanılır ve Android'dekilerle aynı odalarda konuşursun.\nKurulum: Safari'de adresi aç, alttaki Paylaş (□↑) düğmesine dokun, \"Ana Ekrana Ekle\"yi seç. Artık uygulama gibi ana ekrandan açılır.\nİlk açılışta adını yaz. Mikrofon ve konum iznine \"İzin ver\" de."], ["2. iPhone'un sınırları (önemli)", "• Ekran açık kalmalı: iPhone, arka plandaki web uygulamasının mikrofonunu kapatır. Sürüşte MotoLink ekranı açık dursun (Ayarlar'daki \"Ekran açık kalsın\" seçeneğini aç).\n• Ekran kilitlenirse tekrar açınca \"Odana geri dön\" ile tek dokunuşla dönersin.\n• Yakın mod (internetsiz Bluetooth / Wi-Fi) yoktur; iPhone yakın moda katılamaz.\n• Kaza algılama yoktur.\n• Bildirimler için Safari'de uygulamayı ana ekrana ekleyip bildirim iznini vermen gerekir."], ["3. Oda açma ve odaya girme", "Oda oluştur: Tek seferlik oda hemen açılır. Kalıcı oda için ad yaz, istersen şifre koy; \"Girişte yönetici onayı\" da seçebilirsin.\nOdaya gir: Kod yaz, QR okut ya da gelen bağlantıya dokun. Girdiğin odalar listede durur, kaç kişi olduğu da yazar.\nOdadan ayrılmak için oda sayfasındaki \"Odadan ayrıl\"a dokun."], ["4. Konuşma modları", "• Bas-konuş: Büyük düğmeye basılı tut, konuş, bırak.\n• Eller serbest: Konuşunca mikrofon kendiliğinden açılır.\n• Sürekli açık: Mikrofon hep açıktır.\nYönetici herkesi bas-konuşa alıp kilitleyebilir. Biri konuşurken oda müziği kısılır.\nBüyük düğmenin etrafındaki halkayı sürükleyerek odanın ses seviyesini ayarlarsın."], ["5. Kulaklık ve hoparlör", "Bas-konuş düğmesinin altındaki Kulaklık ve Hoparlör düğmeleriyle çıkışı seçersin. iPhone'da çıkış cihazını seçme sınırlıdır; Bluetooth kulaklık bağlıysa ses oradan gelir. Ses gelmiyorsa iPhone'un ses düğmesine ve sessiz modu anahtarına bak."], ["6. Harita ve navigasyon", "Harita sayfasında odadakilerin yerini ve hızını görürsün. Birine dokununca takip edersin.\nHedef seçip rota çizebilir, uygulama içi navigasyonu başlatabilirsin: dönüş oku, kalan mesafe, varış saati ve hız ekranda görünür.\nSürüşünü kaydedip rotalarına ekleyebilirsin.\nNot: Rotayı videoya çevirme (Sürüş filmi) sadece Android uygulamasındadır; iPhone / web'de yoktur.\nKonum paylaşımı Ayarlar'dan açılıp kapatılır. Kapalıysa kimse seni haritada göremez.\nNot: Hızın görünmesi için konum canlı paylaşılmalı ve ekran açık olmalıdır."], ["7. S.O.S", "S.O.S düğmesine basınca nedeni seç. Çağrın odalardaki ve arkadaşlarındaki herkese gider. İptal edebilirsin.\nBunu internet olan yerde kullanabilirsin. Acil durumda 112'yi ara."], ["8. Mesajlar ve fotoğraf", "💬 Mesajlar'dan odaya ya da tek kişiye yazarsın. Sürüşte yazı kapalıdır, hazır mesajlar kalır.\nKamera düğmesiyle fotoğraf gönderirsin; fotoğraf sunucuda saklanmaz.\nUygunsuz mesaj ya da fotoğrafa dokunup \"Bildir\" ya da \"Engelle\" seçebilirsin."], ["9. Müzik ve radyo", "Müzik sayfasında internet radyosu çalarsın. Odada paylaşırsan herkes birlikte dinler. Android'li arkadaşın telefon müziğini paylaşırsa onu da duyarsın.\nRadyo satırında önceki / oynat / sonraki düğmeleri vardır."], ["10. Arkadaşlar", "Arkadaş kodun: Ayarlar ya da Ana sayfadaki \"Arkadaş kodum\"dan görürsün.\nArkadaş ekle: Kodu yaz ya da odada birinin adına dokunup \"Arkadaş olarak ekle\" de. Arkadaşını ararsan ona özel oda açılır.\nUygulaması olmayan birini davet etmek için \"Arkadaş ekle\" ekranındaki \"MotoLink'e davet et\" düğmesini kullan."], ["11. Oda yönetimi (YÖNET)", "Odayı açan ve yönetici yapılanlar YÖNET menüsünü görür:\n• Konuşmaları kaydet / durdur.\n• Herkesi bas-konuşa al, odayı kilitle, herkesi sustur ya da serbest bırak.\n• Girişte yönetici onayı iste.\n• Odaya duyuru gönder: herkesin ekranında çıkar ve sesli okunur.\n• Kayıtlı üyeler: odaya daha önce giren herkesi ve son giriş zamanını görürsün.\n• Oda adını düzenle (adı yanlış yazdıysan): giriş kodu değişmez. Sadece odayı açan yapabilir.\n• Birini odadan çıkar (30 dakika geri giremez), yönetici ekle / çıkar."], ["12. Arkadaşlarını davet etme", "Odadayken Paylaş: \"Android için davet\" ya da \"iPhone için davet\" seç. QR kodu da gösterebilirsin.\nAyarlar > Arkadaşlarını davet et: hepsini birlikte, sadece Android ya da sadece iPhone bağlantısını gönderirsin."], ["13. Hesap, yedek ve telefon değiştirme", "Safari verisi silinse ya da yeni telefona geçsen odaların şunlarla geri gelir:\n• Kimlik kodu: Ayarlar > Hesap ve yedek > \"Kimlik kodum\". \"ML-\" ile başlayan kodu sakla; \"Kodla geri yükle\" ile gir.\n• Google ile bağlan: Aynı Gmail ile girersen hesabın geri gelir. Yanlış hesapla bağlandıysan \"Google bağlantısını kaldır\"a bas.\nKimlik kodunu kimseyle paylaşma."], ["14. Sorun giderme", "Duyamıyoruz: Oda sayfasından çıkıp tekrar girin. Ekranın açık olduğundan ve sessiz modun kapalı olduğundan emin olun.\nHız görünmüyor: Konum izni verilmiş ve konum paylaşımı açık olmalı; ekran açık kalmalı.\nEski sürüm görünüyor: Uygulamayı tamamen kapatıp yeniden aç. Olmazsa Safari'de sayfayı yenile.\nBildirim yok: Uygulamayı ana ekrana ekleyip bildirim iznini ver."]];
+const GUIDE = [["1. Başlarken (iPhone / web)", "MotoLink'in iPhone'da App Store uygulaması yoktur; web sürümü kullanılır ve Android'dekilerle aynı odalarda konuşursun.\nKurulum: Safari'de adresi aç, alttaki Paylaş (□↑) düğmesine dokun, \"Ana Ekrana Ekle\"yi seç. Artık uygulama gibi ana ekrandan açılır.\nİlk açılışta adını yaz. Mikrofon ve konum iznine \"İzin ver\" de."], ["2. iPhone'un sınırları (önemli)", "• Ekran açık kalmalı: iPhone, arka plandaki web uygulamasının mikrofonunu kapatır. Sürüşte MotoLink ekranı açık dursun (Ayarlar'daki \"Ekran açık kalsın\" seçeneğini aç).\n• Ekran kilitlenirse tekrar açınca \"Odana geri dön\" ile tek dokunuşla dönersin.\n• Yakın mod (internetsiz Bluetooth / Wi-Fi) yoktur; iPhone yakın moda katılamaz.\n• Kaza algılama yoktur.\n• Bildirimler için Safari'de uygulamayı ana ekrana ekleyip bildirim iznini vermen gerekir."], ["3. Oda açma ve odaya girme", "Oda oluştur: Tek seferlik oda hemen açılır. Kalıcı oda için ad yaz, istersen şifre koy; \"Girişte yönetici onayı\" da seçebilirsin.\nOdaya gir: Kod yaz, QR okut ya da gelen bağlantıya dokun. Girdiğin odalar listede durur, kaç kişi olduğu da yazar.\nOdadan ayrılmak için oda sayfasındaki \"Odadan ayrıl\"a dokun."], ["4. Konuşma modları", "• Bas-konuş: Büyük düğmeye basılı tut, konuş, bırak.\n• Eller serbest: Konuşunca mikrofon kendiliğinden açılır.\n• Sürekli açık: Mikrofon hep açıktır.\nYönetici herkesi bas-konuşa alıp kilitleyebilir. Biri konuşurken oda müziği kısılır.\nBüyük düğmenin etrafındaki halkayı sürükleyerek odanın ses seviyesini ayarlarsın."], ["5. Kulaklık ve hoparlör", "Bas-konuş düğmesinin altındaki Kulaklık ve Hoparlör düğmeleriyle çıkışı seçersin. iPhone'da çıkış cihazını seçme sınırlıdır; Bluetooth kulaklık bağlıysa ses oradan gelir. Ses gelmiyorsa iPhone'un ses düğmesine ve sessiz modu anahtarına bak."], ["6. Harita ve navigasyon", "Harita sayfasında odadakilerin yerini ve hızını görürsün. Birine dokununca takip edersin.\nHedef seçip rota çizebilir, uygulama içi navigasyonu başlatabilirsin: dönüş oku, kalan mesafe, varış saati ve hız ekranda görünür.\nSürüşünü kaydedip rotalarına ekleyebilirsin.\nNot: Rotayı videoya çevirme (Sürüş filmi) sadece Android uygulamasındadır; iPhone / web'de yoktur.\nBuluşma noktası: Yönetici YÖNET > \"Buluşma noktası koy\"a dokunur, haritayı kaydırıp ortadaki iğneyle yeri seçer, adı, tarihi ve saati yazar. Nokta odaya kaydolur; odaya giren herkes haritada saatiyle görür, dokununca yol tarifi alır.\nKonum paylaşımı Ayarlar'dan açılıp kapatılır. Kapalıysa kimse seni haritada göremez.\nNot: Hızın görünmesi için konum canlı paylaşılmalı ve ekran açık olmalıdır."], ["7. S.O.S", "S.O.S düğmesine basınca nedeni seç. Çağrın odalardaki ve arkadaşlarındaki herkese gider. İptal edebilirsin.\nBunu internet olan yerde kullanabilirsin. Acil durumda 112'yi ara."], ["8. Mesajlar ve fotoğraf", "💬 Mesajlar'dan odaya ya da tek kişiye yazarsın. Sürüşte yazı kapalıdır, hazır mesajlar kalır.\nYazı satırının yanındaki 📍 düğmesi konumunu odaya gönderir; gelen konuma dokununca harita açılır.\nKamera düğmesiyle fotoğraf gönderirsin; fotoğraf sunucuda saklanmaz.\nUygunsuz mesaj ya da fotoğrafa dokunup \"Bildir\" ya da \"Engelle\" seçebilirsin."], ["9. Müzik ve radyo", "Müzik sayfasında internet radyosu çalarsın. Odada paylaşırsan herkes birlikte dinler. Android'li arkadaşın telefon müziğini paylaşırsa onu da duyarsın.\nRadyo satırında önceki / oynat / sonraki düğmeleri vardır."], ["10. Arkadaşlar", "Arkadaş kodun: Ayarlar ya da Ana sayfadaki \"Arkadaş kodum\"dan görürsün.\nArkadaş ekle: Kodu yaz ya da odada birinin adına dokunup \"Arkadaş olarak ekle\" de. Arkadaşını ararsan ona özel oda açılır.\nUygulaması olmayan birini davet etmek için \"Arkadaş ekle\" ekranındaki \"MotoLink'e davet et\" düğmesini kullan."], ["11. Oda yönetimi (YÖNET)", "Odayı açan ve yönetici yapılanlar YÖNET menüsünü görür:\n• Konuşmaları kaydet / durdur.\n• Herkesi bas-konuşa al, odayı kilitle, herkesi sustur ya da serbest bırak.\n• Girişte yönetici onayı iste.\n• Odaya duyuru gönder: herkesin ekranında çıkar ve sesli okunur.\n• Kayıtlı üyeler: odaya daha önce giren herkesi ve son giriş zamanını görürsün.\n• Oda adını düzenle (adı yanlış yazdıysan): giriş kodu değişmez. Sadece odayı açan yapabilir.\n• Birini odadan çıkar (30 dakika geri giremez), yönetici ekle / çıkar."], ["12. Arkadaşlarını davet etme", "Odadayken Paylaş: \"Android için davet\" ya da \"iPhone için davet\" seç. QR kodu da gösterebilirsin.\nAyarlar > Arkadaşlarını davet et: hepsini birlikte, sadece Android ya da sadece iPhone bağlantısını gönderirsin."], ["13. Hesap, yedek ve telefon değiştirme", "Safari verisi silinse ya da yeni telefona geçsen odaların şunlarla geri gelir:\n• Kimlik kodu: Ayarlar > Hesap ve yedek > \"Kimlik kodum\". \"ML-\" ile başlayan kodu sakla; \"Kodla geri yükle\" ile gir.\n• Google ile bağlan: Aynı Gmail ile girersen hesabın geri gelir. Yanlış hesapla bağlandıysan \"Google bağlantısını kaldır\"a bas.\nKimlik kodunu kimseyle paylaşma."], ["14. Sorun giderme", "Duyamıyoruz: Oda sayfasından çıkıp tekrar girin. Ekranın açık olduğundan ve sessiz modun kapalı olduğundan emin olun.\nHız görünmüyor: Konum izni verilmiş ve konum paylaşımı açık olmalı; ekran açık kalmalı.\nEski sürüm görünüyor: Uygulamayı tamamen kapatıp yeniden aç. Olmazsa Safari'de sayfayı yenile.\nBildirim yok: Uygulamayı ana ekrana ekleyip bildirim iznini ver."]];
 function renderGuide() {
   const b = document.querySelector('#guideBox'); if (!b) return;
   const esc = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -364,7 +364,7 @@ function renderGuide() {
       '<div class="row raised" data-i="' + i + '"><div class="av" style="background:' + colorOf(r.code) + '">' + esc(initial(r.name || r.code)) + '</div>' +
       '<div class="tx"><b>' + esc(r.name || r.code) + '</b><small>' + esc(r.code) + (r.locked ? ' · 🔒 şifreli' : '') + '</small>' +
       memLine(r.code) + '</div>' +
-      (n > 0 ? '<span class="cnt-on">● ' + n + ' kişi</span>' : '<span class="cnt-off">Boş</span>') +
+      (n > 0 ? '<span class="cnt-on tap" data-mem="' + esc(r.code) + '">● ' + n + ' kişi</span>' : '<span class="cnt-off">Boş</span>') +
       '<button class="x" data-del="' + i + '" aria-label="Listeden kaldır">✕</button></div>'); }).join('')
       : '<div class="note" style="margin:0 2px">Girdiğin odalar burada listelenir.</div>';
     box.querySelectorAll('.row').forEach((el) => el.addEventListener('click', (e) => {
@@ -383,9 +383,12 @@ function renderGuide() {
     const l = roomNames(code); if (!l.length) return '';
     return '<small class="rnames tap" data-mem="' + esc(code) + '">● ' + esc(l.slice(0, 3).join(', ')) + (l.length > 3 ? ' +' + (l.length - 3) + ' kişi' : '') + ' ▸</small>';
   }
-  function showMembers(code) {
+  async function showMembers(code) {
+    if (!roomNames(code).length && (ROOM_COUNTS[code] || 0) > 0) {
+      try { const m = await api({ action: 'members', room: code, identity: MY_CODE, rooms: [code] }); if (m.members && m.members[code]) ROOM_NAMES[code] = m.members[code]; } catch (e) {}
+    }
     const l = roomNames(code), rm = (store.get('rooms', []) || []).find((r) => r.code === code);
-    sheet('<h3>👥 ' + esc((rm && rm.name) || code) + '</h3><p>Odada şu an ' + l.length + ' kişi var</p>' +
+    sheet('<h3>👥 ' + esc((rm && rm.name) || code) + '</h3><p>' + (l.length ? 'Şu an odada (çevrimiçi) ' + l.length + ' kişi var' : 'İsimler alınamadı. Sunucu kodunu (Kod.gs 0.9.63) yayınla.') + '</p>' +
       '<div class="list">' + l.map((n) => '<div class="row raised"><div class="av" style="background:' + colorOf(n) + '">' + esc(initial(n)) + '</div><div class="tx"><b>' + esc(n) + '</b></div></div>').join('') + '</div>' +
       '<button id="memOk" class="mbtn raised">Kapat</button>', (b) => { b.querySelector('#memOk').onclick = closeSheet; });
   }
@@ -536,6 +539,7 @@ function renderGuide() {
     S.title = info.name || code; S.locked = !!info.locked; S.permanent = !!info.permanent; S.logo = String(info.logo || '');
     S.owner = acc.owner || ''; S.admins = new Set(acc.admins || []);
     S.nicks = acc.nicks || {}; S.approval = !!(info.approval);
+    S.rally = acc.rally || null;   // 1.4.32: buluşma noktası
     S.lockedIds = new Set(); S.silenced = new Set(); S.roomLock = false;
     S.modes = {}; S.onCall = new Set(); S.callInfo = {}; S.locs = {};
     S.open = false; S.live = false; S.micOn = false;
@@ -621,7 +625,7 @@ function renderGuide() {
       try { await r.disconnect(); } catch (e) {}
     }
     stopTicks(); stopGeo(); keepAwake(false);
-    clearInterval(S.reqTimer); S.nicks = {}; S.approval = false;
+    clearInterval(S.reqTimer); S.nicks = {}; S.approval = false; S.rally = null; try { drawRally(); } catch (e) {}
     $$('audio.lk').forEach((a) => a.remove());
     S.micOn = false; S.open = false; S.live = false; S.locs = {};
     clearPhotos();
@@ -742,6 +746,7 @@ function renderGuide() {
       case 'rec': if (id) onRec(j, id, name); break;
       case 'music': onMusic(j); break;
       case 'adm': case 'locks': case 'mod': case 'nick': case 'apr': case 'ann': onAdminMsg(j, id, name); break;
+      case 'rally': if (isAdmin(id)) { S.rally = j.clear ? null : { lat: j.lat, lon: j.lon, n: j.n, h: j.h, d: j.d }; drawRally(); if (!j.clear) toast('📍 Buluşma noktası: ' + (j.n || '') + ' · ' + [j.d, j.h].filter(Boolean).join(' · '), 7000); } break;
       default: break;
     }
   }
@@ -799,7 +804,7 @@ function renderGuide() {
     $('#chatPhoto').classList.toggle('hidden', !!CH.to);
     box.innerHTML = th.length ? th.map((m) => m.ph ?
       '<div class="cb ph ' + (m.me ? 'me' : 'o') + '">' + (m.me ? '' : '<small>' + esc(m.name) + '</small>') + '<img src="' + m.ph.url + '" data-ph="' + esc(m.ph.id) + '" alt="Fotoğraf"><time>' + new Date(m.at).toTimeString().slice(0, 5) + '</time></div>' :
-      '<div class="cb ' + (m.me ? 'me' : 'o') + '"' + (m.me ? '' : ' data-mid="' + esc(m.id) + '"') + '>' + (m.me ? '' : '<small>' + esc(m.name) + (m.to ? ' (özel)' : '') + '</small>') + esc(m.x) +
+      '<div class="cb ' + (m.me ? 'me' : 'o') + '"' + (m.me ? '' : ' data-mid="' + esc(m.id) + '"') + '>' + (m.me ? '' : '<small>' + esc(m.name) + (m.to ? ' (özel)' : '') + '</small>') + chText(m.x) +
       '<time>' + new Date(m.at).toTimeString().slice(0, 5) + '</time></div>').join('') :
       '<div class="empty">' + (CH.to ? 'Bu kişiyle henüz yazışmadınız.' : 'Henüz mesaj yok. Aşağıdaki hazır mesajlarla başla.<br><br>Uygunsuz bir mesaja dokunarak bildirebilir ya da kişiyi engelleyebilirsin.') + '</div>';
     box.querySelectorAll('[data-mid]').forEach((el) => { el.onclick = () => chMsgMenu(CH.msgs.find((m) => m.id === el.dataset.mid)); });
@@ -934,6 +939,16 @@ function renderGuide() {
   function chOpen(to) { if (!S.room) return; CH.to = to || null; CH.open = true; $('#chat').classList.remove('hidden'); chMarkRead(); chRender(); }
   function chClose() { CH.open = false; const el = $('#chat'); el.classList.add('hidden'); el.classList.remove('kb'); el.style.height = ''; el.style.top = ''; try { $('#chatIn').blur(); } catch (e) {} }
   function chClear() { try { $('#people').classList.add('hidden'); } catch (e) {}  try { $('#chatBanner').classList.add('hidden'); } catch (e) {} CH.msgs = []; CH.unreadAll = 0; CH.unreadPriv = {}; CH.seen.clear(); CH.to = null; chClose(); chBadge(); }
+  // 1.4.32: konum mesajı bağlantısı → "📍 Konum" bağlantısı
+  function chText(x) {
+    const re = /https:\/\/maps\.google\.com\/\?q=[-0-9.,]+/;
+    const m = String(x).match(re); if (!m) return esc(x);
+    return '<a href="' + m[0] + '" target="_blank" rel="noopener" style="color:#FFB04A;font-weight:700" onclick="event.stopPropagation()">📍 Konum — dokun, haritada aç</a>';
+  }
+  function chSendLoc() {
+    if (!S.myLoc) { toast('Konumun henüz alınamadı. Konum paylaşımı açık mı?'); return; }
+    chSend('📍 Konum: https://maps.google.com/?q=' + S.myLoc.lat.toFixed(6) + ',' + S.myLoc.lon.toFixed(6));
+  }
   function chSend(text) {
     const x = String(text || '').trim().slice(0, 200); if (!x || !S.room) return false;
     const now = Date.now(); if (now - CH.last < 400) return false; CH.last = now;
@@ -1459,6 +1474,7 @@ function renderGuide() {
       (amAdmin() && (S.locked || S.permanent) ? '<button class="mbtn raised" data-a="apr">' + (S.approval ? '🛡 Girişte onay: AÇIK (kapatmak için dokun)' : '🛡 Girişte yönetici onayı iste') + '</button>' : '') +
       '<button class="mbtn raised" data-a="ann">📢 Odaya duyuru gönder</button>' +
       '<button class="mbtn raised" data-a="roster">👥 Kayıtlı üyeler</button>' +
+      '<button class="mbtn raised" data-a="rally">📍 Buluşma noktası koy (haritadan)</button>' +
       (S.id === S.owner && S.permanent ? '<button class="mbtn raised" data-a="ren">✏️ Oda adını düzenle</button>' : '') +
       '<p>Tek bir kişi için listede ismine dokun. Gizlilik gereği kimsenin mikrofonu uzaktan açılamaz.</p>' +
       '<button class="mbtn raised" data-a="x">Kapat</button>', (b) => {
@@ -1472,6 +1488,7 @@ function renderGuide() {
         if (a === 'ren') setTimeout(askRenameRoom, 80);
         if (a === 'ann') setTimeout(askAnnounce, 80);
         if (a === 'roster') setTimeout(showRosterAdmin, 80);
+        if (a === 'rally') setTimeout(rallyPick, 80);
         if (a === 'rec') setTimeout(() => $('#roomRecBtn').onclick(), 80);   // 1.4.4: kayıt YÖNET menüsünde
       });
     });
@@ -1708,6 +1725,67 @@ function renderGuide() {
     go('map');
     setTimeout(() => { try { if (map) { map.invalidateSize(); map.setView([l.lat, l.lon], Math.max(map.getZoom(), 16)); if (markers[id]) markers[id].openTooltip(); } } catch (e) {} }, 350);
   }
+  // 1.4.32: buluşma noktası (yönetici koyar; odaya kaydolur)
+  let rallyMk = null;
+  function rallyAt(r) { return [r.d, r.h].filter(Boolean).join(' · '); }
+  function drawRally() {
+    if (!map) return;
+    if (rallyMk) { map.removeLayer(rallyMk); rallyMk = null; }
+    const r = S.rally; if (!r || !S.room) return;
+    const icon = L.divIcon({ className: '', iconSize: [36, 36], iconAnchor: [18, 18], html: '<div class="pin" style="background:#FFB04A;font-size:20px;display:flex;align-items:center;justify-content:center">📍</div>' });
+    rallyMk = L.marker([r.lat, r.lon], { icon }).addTo(map).bindTooltip(esc((r.n || 'Buluşma') + (rallyAt(r) ? ' · ' + rallyAt(r) : '')), { permanent: true, direction: 'top', offset: [0, -16] });
+    rallyMk.on('click', () => {
+      const nav = 'https://maps.google.com/?q=' + r.lat + ',' + r.lon;
+      sheet('<h3>📍 ' + esc(r.n || 'Buluşma noktası') + '</h3><p>' + esc(rallyAt(r) || '') + '</p>' +
+        '<a class="mbtn amber" style="display:block;text-align:center;text-decoration:none" href="' + nav + '" target="_blank" rel="noopener">🧭 Yol tarifi al</a>' +
+        (amAdmin() ? '<button class="mbtn danger" data-a="del">🗑 Noktayı kaldır</button>' : '') +
+        '<button class="mbtn raised" data-a="x">Kapat</button>', (b) => {
+        b.querySelector('[data-a="x"]').onclick = closeSheet;
+        const d = b.querySelector('[data-a="del"]'); if (d) d.onclick = () => { closeSheet(); setRally(null); };
+      });
+    });
+  }
+  async function setRally(r) {
+    if (!S.room || !amAdmin()) return;
+    S.rally = r; drawRally();
+    publish(r ? { t: 'rally', lat: r.lat, lon: r.lon, n: r.n, h: r.h, d: r.d } : { t: 'rally', clear: true });
+    try {
+      const j = await api(r ? { action: 'rally_set', room: S.code, identity: S.id, lat: r.lat, lon: r.lon, n: r.n, h: r.h, d: r.d } : { action: 'rally_set', room: S.code, identity: S.id, clear: true });
+      if (j.error) toast(j.error); else toast(r ? '📍 Buluşma noktası kaydedildi.' : 'Buluşma noktası kaldırıldı.');
+    } catch (e) { toast('Kaydedilemedi. Sunucu kodu (Kod.gs 0.9.64) yayınlandı mı?', 6000); }
+  }
+  // Seçim modu: haritayı kaydır, ortadaki iğne konumu seçer
+  function rallyPick() {
+    if (!S.room || !amAdmin()) return;
+    go('map');
+    setTimeout(() => {
+      if (!map) return; map.invalidateSize();
+      if (S.myLoc && map.getZoom() < 14) map.setView([S.myLoc.lat, S.myLoc.lon], 15);
+      const host = $('#map').parentElement; host.style.position = host.style.position || 'relative';
+      let bar = document.getElementById('rallyBar'); if (bar) bar.remove();
+      bar = document.createElement('div'); bar.id = 'rallyBar';
+      bar.innerHTML = '<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);font-size:38px;z-index:1200;pointer-events:none">📍</div>' +
+        '<div style="position:absolute;left:12px;right:12px;bottom:12px;z-index:1200;display:flex;gap:8px"><button id="rpOk" class="mbtn amber" style="flex:2">📍 Buraya koy</button><button id="rpNo" class="mbtn raised" style="flex:1">Vazgeç</button></div>';
+      host.appendChild(bar);
+      toast('Haritayı kaydır: ortadaki iğne konumu seçer.', 5000);
+      document.getElementById('rpNo').onclick = () => bar.remove();
+      document.getElementById('rpOk').onclick = () => {
+        const c = map.getCenter(); bar.remove();
+        const t = new Date(), pad = (n) => String(n).padStart(2, '0');
+        const dv = t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+        sheet('<h3>📍 Buluşma noktası</h3><input id="rpN" class="input inset" maxlength="40" placeholder="Yerin adı (örn. Korteji başlangıç)"><label class="small">Tarih</label><input id="rpD" type="date" class="input inset" value="' + dv + '"><label class="small">Saat</label><input id="rpH" type="time" class="input inset" value="10:00">' +
+          '<button id="rpSave" class="mbtn amber">Kaydet</button><button id="rpX" class="mbtn raised">Vazgeç</button>', (b) => {
+          b.querySelector('#rpX').onclick = closeSheet;
+          b.querySelector('#rpSave').onclick = () => {
+            const n = (b.querySelector('#rpN').value || '').trim() || 'Buluşma noktası';
+            const h = b.querySelector('#rpH').value || '', dd = b.querySelector('#rpD').value || '';
+            const d = dd ? dd.slice(8, 10) + '.' + dd.slice(5, 7) : '';
+            closeSheet(); setRally({ lat: +c.lat.toFixed(6), lon: +c.lng.toFixed(6), n, h, d });
+          };
+        });
+      };
+    }, 400);
+  }
   let mapAll = {};
   function renderMapRiders() {
     $('#pings').classList.toggle('hidden', !S.room);
@@ -1724,6 +1802,7 @@ function renderGuide() {
         else markers[l.id] = L.marker([l.lat, l.lon], { icon }).addTo(map).bindTooltip(esc(me ? 'Sen' : l.name));
       });
       if (!centered && S.myLoc) { centered = true; map.setView([S.myLoc.lat, S.myLoc.lon], 14); }
+      drawRally();
     }
     const me = all[S.id];
     const nAll = Object.keys(all).length;
@@ -2771,7 +2850,7 @@ function renderGuide() {
     $('#liteAuto').textContent = store.get('lite', null) === null ? '(otomatik: ' + (autoLite() ? 'açık' : 'kapalı') + ')' : '';
     c.onchange = () => { store.set('lite', c.checked); applyLite(); $('#liteAuto').textContent = ''; toast(c.checked ? 'Hafif mod açıldı.' : 'Hafif mod kapandı.'); };
   })();
-  const APP_VER = 'web '+'1.4.30'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
+  const APP_VER = 'web '+'1.4.32'; $('#ver').textContent = APP_VER; $('#verBig').textContent = APP_VER;
   setTimeout(() => { try { $('#verFit').textContent = window.__fitInfo || ''; } catch (e) {} }, 1500);   // 1.4.13: ekran ölçüsü (sorun olursa ekran görüntüsünden bakılır)
   $('#privacyBtn').onclick = () => window.open(CFG.SERVER + '?page=gizlilik', '_blank');
   $('#wipeBtn').onclick = () => {
@@ -3013,6 +3092,7 @@ function renderGuide() {
     });
   }
   $('#chatPhoto').onclick = () => $('#photoBtn').click();
+  $('#chatLoc').onclick = chSendLoc;
   $('#photoBtn').onclick = () => {
     if (!S.room) { toast('Fotoğraf göndermek için odada olmalısın.'); return; }
     if (PH.sending != null) { toast('Bir önceki fotoğraf hâlâ gönderiliyor.'); return; }
